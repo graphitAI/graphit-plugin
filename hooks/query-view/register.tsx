@@ -1,19 +1,21 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import { KB_PANE, LINEAGE_PANE, RESULTS_PANE, SQL_PANE, capped } from './atoms'
+import { DETAILS_PANE, KB_PANE, LINEAGE_PANE, RESULTS_PANE, SQL_PANE, capped } from './atoms'
 import { buildModel, drawTooLarge } from './card'
 import type { CardActions } from './card'
 import { drawDesktopCard } from './card-desktop'
 import { drawTerminalCard } from './card-terminal'
-import { READ_LIMIT, openedFor, parsedFor, rememberOpened, rememberParsed, rememberSaved, savedFor, withReadSlot } from './loaders'
+import { drawDetailsPane } from './details-pane'
+import { READ_LIMIT, openedFor, parsedFor, rememberOpened, rememberParsed, rememberSaved, savedFor, savedFromPreview, withReadSlot } from './loaders'
 import type { Loaded } from './loaders'
 import { drawExplorer, drawKbPane, drawSqlPane } from './panes'
-import { RESULTS_STEP, drawResultsPane, resultsWidth } from './results-pane'
+import { columnsOf, drawResultsPane, nextTop, resultsWidth, viewRows, windowRows } from './results-pane'
+import type { ResultsActions } from './results-pane'
 import { clean, isGraphitQuery, parseMetricDef, parseQueryResult, queryReachesStdout } from './result'
 import type { QueryResult } from './result'
 import type { Expansion } from './sql'
-import type { CommandByCall, Explore, KbDef, KbSelection, ResultsView, SqlPane, TabByCall, Upstream } from './state'
+import type { CommandByCall, DetailsTab, DetailsView, Explore, KbDef, KbSelection, ResultsView, SqlPane, TabByCall, Upstream } from './state'
 import { assembleUpstream, errorOf, jsonOf } from './upstream'
 
 // Feature #1062: the selected tab of each result, keyed by tool_use_id (by the
@@ -32,6 +34,45 @@ const upstreams = atom({ plugin: 'graphit', key: 'queryViewUpstream' } as const,
 const explore = atom({ plugin: 'graphit', key: 'queryViewExplore' } as const, null as Explore | null)
 const sqlPane = atom({ plugin: 'graphit', key: 'queryViewSqlPane' } as const, null as SqlPane | null)
 const resultsView = atom({ plugin: 'graphit', key: 'queryViewResults' } as const, null as ResultsView | null)
+// The desktop card's one sidebar: which query, which tab, its SQL, KB and rules.
+const details = atom({ plugin: 'graphit', key: 'queryViewDetails' } as const, null as DetailsView | null)
+
+// Results, SQL and Lineage are as wide as the Full results table wants; KB reads best narrower.
+const DETAILS_COLUMNS = 100
+
+// The results table's actions: a search or a sort starts the window back at
+// the first row; a header press sorts low to high, then high to low, then off.
+function resultsActions(set: (fn: (v: ResultsView) => ResultsView) => unknown, copy: (text: string) => unknown): ResultsActions {
+  return {
+    search: query => set(v => ({ ...v, query, top: 0 })),
+    setTop: top => set(v => ({ ...v, top })),
+    sortBy: column =>
+      set(v =>
+        v.sort !== column
+          ? { ...v, sort: column, desc: false, top: 0 }
+          : v.desc
+            ? { ...v, sort: '', desc: false, top: 0 }
+            : { ...v, desc: true, top: 0 },
+      ),
+    copy,
+  }
+}
+
+// A pane body's height in rows, as the surface laid it out.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function paneRows(e: any): number | undefined {
+  const rows = (e.props as { scroll?: { bodyRows?: unknown } } | undefined)?.scroll?.bodyRows
+  return typeof rows === 'number' && rows > 0 ? rows : undefined
+}
+
+// A pane's body width in cells: what the surface laid it out at, else what it measured.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function paneColumns(e: any): number | undefined {
+  const body = (e.props as { bodyColumns?: unknown } | undefined)?.bodyColumns
+  if (typeof body === 'number' && body > 0) return body
+  const measured = (e.viewport as { columns?: unknown } | undefined)?.columns
+  return typeof measured === 'number' && measured > 0 ? measured : undefined
+}
 
 // Feature #1077: tell scripts/show-query-result.mjs that this view draws the
 // session's query results, so it says "already displayed" instead of asking the
@@ -72,7 +113,7 @@ let logoInner: string | null = null
 async function loadResult($: any, id: string | undefined, output: unknown): Promise<Loaded> {
   const direct = parseQueryResult(output)
   if (direct) return { result: direct }
-  const file = savedFor(id)
+  const file = savedFor(id) ?? savedFromPreview(output)
   if (!file) return null
   if (file.size > READ_LIMIT) return { tooLarge: file.size }
   if (parsedFor(file.path) === undefined) {
@@ -155,17 +196,25 @@ async function loadUpstream($: any, key: string, sourceName: string | undefined,
 // Feature #1062: open the KB sidebar on a reference and read its definition.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function openKb($: any, x: Expansion): Promise<void> {
-  const k = `${x.kind}:${x.name}`
   await update($, selected, () => ({ kind: x.kind, name: x.name, alias: x.alias, expansion: x.expr }))
   await $.ui.open({ id: KB_PANE, title: 'Knowledge Base', closeOnEscape: true, focus: true })
-  if (x.kind !== 'Metric') {
+  await loadDef($, x.kind, x.name)
+}
+
+// One KB asset's definition, read once through the CLI and kept by
+// `${kind}:${name}`. Only metrics have a definition read; the rest are marked so.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function loadDef($: any, kind: string, name: string): Promise<void> {
+  const k = `${kind}:${name}`
+  if (kind !== 'Metric') {
     await update($, defs, d => capped(d, k, { status: 'unsupported' }))
     return
   }
-  if ((await read($, defs))[k]?.status === 'ok') return
+  const status = (await read($, defs))[k]?.status
+  if (status === 'ok' || status === 'loading') return
   await update($, defs, d => capped(d, k, { status: 'loading' }))
   try {
-    const ran = await withReadSlot(() => runGraphit($, ['kb', 'get', 'metric', '--', x.name], 20000))
+    const ran = await withReadSlot(() => runGraphit($, ['kb', 'get', 'metric', '--', name], 20000))
     const def = parseMetricDef(ran.stdout || ran.stderr)
     await update($, defs, d => capped(d, k, def))
   } catch {
@@ -203,9 +252,31 @@ async function drawLoaded($: any, e: any, loaded: Loaded, id: string, command: s
     openResults: async () => {
       rememberOpened(rowKey, result)
       const title = `Results · ${model?.sourceName ?? 'query'}`
-      await update($, resultsView, () => ({ id: rowKey, title, query: '', sort: '', desc: false, limit: RESULTS_STEP }))
+      await update($, resultsView, () => ({ id: rowKey, title, query: '', sort: '', desc: false, top: 0 }))
       // Wide enough for every column; a width the person dragged to still wins.
       await $.ui.open({ id: RESULTS_PANE, title, closeOnEscape: true, focus: true, columns: resultsWidth(result) })
+    },
+    openDetails: async input => {
+      // Every tab's content is set up here, so a tab switch in the sidebar
+      // needs no second read.
+      rememberOpened(rowKey, result)
+      const source = model?.sourceName ?? 'query'
+      const sql = { base: clean(model?.baseSql ?? '') || undefined, runtime: clean(model?.runSql ?? '') || undefined, kind: input.sqlKind }
+      const shownSql = (input.sqlKind === 'base' ? sql.base : sql.runtime) ?? sql.base ?? sql.runtime ?? ''
+      await update($, resultsView, () => ({ id: rowKey, title: `Results · ${source}`, query: '', sort: '', desc: false, top: 0 }))
+      if (model) await update($, explore, () => ({ title: `${source} lineage`, layers: model!.layers.layers, edges: model!.layers.edges, trail: [] }))
+      await update($, sqlPane, () => ({ title: input.sqlKind === 'base' ? 'SQL as written' : 'SQL as run', sql: shownSql }))
+      await update($, details, () => ({ rowKey, title: `Query details · ${source}`, tab: input.tab, sql, kb: input.kb, rules: input.rules, open: [] }))
+      await $.ui.open({
+        id: DETAILS_PANE,
+        title: `Query details · ${source}`,
+        closeOnEscape: true,
+        focus: true,
+        columns: Math.max(DETAILS_COLUMNS, resultsWidth(result)),
+      })
+      // Each KB row shows its description, so read every definition now; each
+      // lands on its own and redraws its row.
+      await Promise.all(input.kb.map(x => loadDef($, x.kind, x.name)))
     },
     copy: text => $.ui.copy({ text, surface: e.surface }),
   }
@@ -251,6 +322,9 @@ export const register: Register = on => {
   for (const component of ['ToolResult', 'ToolUse'] as const) {
     on('ui.render', { component }, async ($, e, proceed) => {
       if (e.props.tool !== 'Bash' || e.props.isErrored) return proceed(e)
+      // The desktop raises ToolResult for a standalone call too, beside its
+      // ToolUse card: drawing both put the same card in the transcript twice.
+      if (component === 'ToolResult' && e.surface === 'desktop') return proceed(e)
       if ('isRunning' in e.props && e.props.isRunning) return proceed(e)
       const command =
         'input' in e.props ? (e.props.input as { command?: unknown } | null)?.command : (await read($, commands))[e.props.tool_use_id]
@@ -316,6 +390,66 @@ export const register: Register = on => {
     )
   })
 
+  // The desktop card's one sidebar. Its tabs draw the same panes the terminal
+  // card still opens one by one, from the same state.
+  on('ui.render', { component: 'Pane', requestId: DETAILS_PANE }, async ($, e) => {
+    try {
+      const d = await read($, details)
+      const ui = $.ui.resolve(e)
+      const copy = (text: string) => $.ui.copy({ text, surface: e.surface })
+      // A press redraws the pane and takes the pressed Button with it; hand
+      // the focus back so the next press is not spent taking it.
+      const refocus = () => (d ? $.ui.open({ id: DETAILS_PANE, title: d.title, closeOnEscape: true, focus: true }) : undefined)
+      const setDetails = async (fn: (v: DetailsView) => DetailsView) => {
+        await update($, details, v => (v ? fn(v) : v))
+        await refocus()
+      }
+      let body: unknown = null
+      if (d?.tab === 'results') {
+        const view = await read($, resultsView)
+        const set = (fn: (v: ResultsView) => ResultsView) => update($, resultsView, v => (v ? fn(v) : v))
+        body = drawResultsPane(ui, openedFor(view?.id), view, resultsActions(set, copy), paneRows(e), paneColumns(e))
+      } else if (d?.tab === 'sql') {
+        body = drawSqlPane(ui, await read($, sqlPane), copy)
+      } else if (d?.tab === 'lineage') {
+        body = drawExplorer(ui, await read($, explore), {
+          go: async to => {
+            await update($, explore, x => (x ? { ...x, selected: to, trail: [...x.trail, x.selected ?? ''].slice(-30) } : x))
+            await refocus()
+          },
+          back: async () => {
+            await update($, explore, x => (x && x.trail.length ? { ...x, selected: x.trail[x.trail.length - 1] || undefined, trail: x.trail.slice(0, -1) } : x))
+            await refocus()
+          },
+          all: async () => {
+            await update($, explore, x => (x ? { ...x, selected: undefined, trail: [...x.trail, x.selected ?? ''].slice(-30) } : x))
+            await refocus()
+          },
+          // A node's SQL opens in this sidebar's SQL tab.
+          openSql: async (title, sql) => {
+            await update($, sqlPane, () => ({ title, sql }))
+            await setDetails(v => ({ ...v, tab: 'sql' }))
+          },
+          copy,
+        }, paneColumns(e))
+      }
+      return drawDetailsPane(ui, d, body, await read($, defs), {
+        setTab: (tab: DetailsTab) => setDetails(v => ({ ...v, tab })),
+        toggle: (key: string) => setDetails(v => ({ ...v, open: v.open.includes(key) ? v.open.filter(k => k !== key) : [...v.open, key] })),
+        setSqlKind: async kind => {
+          const v = await read($, details)
+          const sql = v ? (kind === 'base' ? v.sql.base : v.sql.runtime) : undefined
+          if (sql) await update($, sqlPane, () => ({ title: kind === 'base' ? 'SQL as written' : 'SQL as run', sql }))
+          await setDetails(x => ({ ...x, sql: { ...x.sql, kind } }))
+        },
+        copy,
+      })
+    } catch (err) {
+      const { Text } = $.ui.resolve(e)
+      return <Text color="red">{`Query details failed: ${String(err instanceof Error ? err.message : err).slice(0, 300)}`}</Text>
+    }
+  })
+
   on('ui.render', { component: 'Pane', requestId: KB_PANE }, async ($, e) => {
     const sel = await read($, selected)
     const def = sel ? (await read($, defs))[`${sel.kind}:${sel.name}`] : undefined
@@ -324,21 +458,38 @@ export const register: Register = on => {
   on('ui.render', { component: 'Pane', requestId: SQL_PANE }, async ($, e) =>
     drawSqlPane($.ui.resolve(e), await read($, sqlPane), text => $.ui.copy({ text, surface: e.surface })),
   )
-  // Feature #1067: Full results. A search starts the rows over at the first
-  // thousand; a header press sorts low to high, then high to low, then off.
+  // Feature #1067: Full results.
   on('ui.render', { component: 'Pane', requestId: RESULTS_PANE }, async ($, e) => {
     const view = await read($, resultsView)
     const set = (fn: (v: ResultsView) => ResultsView) => update($, resultsView, v => (v ? fn(v) : v))
-    return drawResultsPane($.ui.resolve(e), openedFor(view?.id), view, {
-      search: query => set(v => ({ ...v, query, limit: RESULTS_STEP })),
-      sortBy: column =>
-        set(v =>
-          v.sort !== column ? { ...v, sort: column, desc: false } : v.desc ? { ...v, sort: '', desc: false } : { ...v, desc: true },
-        ),
-      more: () => set(v => ({ ...v, limit: v.limit + RESULTS_STEP })),
-      copy: text => $.ui.copy({ text, surface: e.surface }),
-    })
+    return drawResultsPane($.ui.resolve(e), openedFor(view?.id), view, resultsActions(set, text => $.ui.copy({ text, surface: e.surface })), paneRows(e), paneColumns(e))
   })
+
+  // The results table draws only a window of rows, so the wheel over a pane
+  // showing it moves the window instead of the pane: the drawing stays inside
+  // the host's size bound however many rows the result has. Any other tab,
+  // and a table that fits whole, scrolls as usual. Where a surface does not
+  // raise ui.scroll for a pane's wheel (the desktop, as of this writing), the
+  // table's own ▲ ▼ buttons move the window instead.
+  for (const pane of [DETAILS_PANE, RESULTS_PANE]) {
+    on('ui.scroll', { requestId: pane }, async ($, e, next) => {
+      if (pane === DETAILS_PANE && (await read($, details))?.tab !== 'results') return next(e)
+      const view = await read($, resultsView)
+      const result = openedFor(view?.id)
+      if (!view || !result) return next(e)
+      const cols = columnsOf(result)
+      const total = viewRows(result.rows, cols, new Set((result.hidden_columns ?? []).map(String)), view).length
+      const win = windowRows(e.bodyRows, cols.length)
+      if (total <= win) return next(e)
+      const top = nextTop(view.top, e.by, total, win)
+      if (top !== view.top) {
+        await update($, resultsView, v => (v ? { ...v, top } : v))
+        // The engine leaves an unmoved window undrawn; ask for the redraw.
+        $.ui.invalidate('ui.render')
+      }
+      return {}
+    })
+  }
   // Feature #1067: the lineage explorer. The trail keeps '' for the layer list,
   // so Back returns to it too. A pane that throws draws nothing; say why.
   on('ui.render', { component: 'Pane', requestId: LINEAGE_PANE }, async ($, e) => {
@@ -365,7 +516,7 @@ export const register: Register = on => {
           await $.ui.open({ id: SQL_PANE, title, closeOnEscape: true, focus: true })
         },
         copy: text => $.ui.copy({ text, surface: e.surface }),
-      })
+      }, paneColumns(e))
     } catch (err) {
       const { Text } = $.ui.resolve(e)
       return <Text color="red">{`The lineage explorer failed: ${String(err instanceof Error ? err.message : err).slice(0, 300)}`}</Text>

@@ -45,11 +45,10 @@ graphit metadata columns --connection <id> --schema <name> --table <name>
 
 This needs no governed reference. An aggregate or `GROUP BY` against a warehouse table that is not yet in the knowledge base is a different matter, so use it for shape rather than probing with a query.
 
-For private work, create the source and activate it (Share uses the agreed policy key):
+For private work, create the source (Share uses the agreed policy key):
 
 ```bash
 graphit ds create --name "MY_DS" --domain Private --sql "SELECT ..." --connection <id>
-graphit ds verify <id> --accept-schema
 ```
 
 Shape it for the question - grain, only the columns dashboards use, low cardinality (see data-sources.md). Show the scanned schema and confirm before moving on.

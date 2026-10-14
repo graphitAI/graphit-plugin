@@ -7,6 +7,8 @@ export const KB_PANE = 'graphit-kb'
 export const LINEAGE_PANE = 'graphit-lineage'
 export const SQL_PANE = 'graphit-sql'
 export const RESULTS_PANE = 'graphit-results'
+// The desktop card's one sidebar, with Results, SQL, Lineage and KB tabs.
+export const DETAILS_PANE = 'graphit-details'
 
 // Entries kept per map; the oldest drop past this.
 const MAX_ENTRIES = 200

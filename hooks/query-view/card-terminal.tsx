@@ -298,7 +298,7 @@ export function drawTerminalCard(ui: Ui, m: CardModel): unknown {
     chart: chartTab,
     lineage: lineageTab,
     base: sqlTab('base', m.baseSql, 'The base query is not in this result.'),
-    runtime: sqlTab('runtime', result.governed_sql, 'No runtime SQL in this result.'),
+    runtime: sqlTab('runtime', m.runSql, 'No runtime SQL in this result.'),
     kb: kbTab,
     governance: governanceTab,
   }

@@ -114,25 +114,19 @@ The class names are a contract with the SDK (`gh-loading`, `gh-loading-overlay`,
 
 ## Cache-friendly resolve SQL
 
-A resolve query following these shapes serves from a semantic cache in roughly 10ms on filter changes instead of a full DuckDB recompute (5 to 37s on wide data sources). Write resolve SQL this way by default.
+Any repeated query is cached: a day, or ten minutes if it reads the clock. A filter change is answered from a shared base in roughly 10ms instead of a full DuckDB recompute (5 to 37s on wide data sources) only for the shapes below. Write resolve SQL this way by default.
 
-**Shapes that hit the cache:**
+**Shapes the base serves:**
 
 - Single table (no JOIN or UNION).
-- WHERE as a flat AND of `column = literal`, `column IN (...)`, `column BETWEEN ... AND ...` conjuncts.
-- Bare aggregates only: `SUM(col)`, `COUNT(*)`, `MIN(col)`, `MAX(col)`. No wrapping functions (`ROUND(SUM(x))`), no aggregate arithmetic (`SUM(a)/NULLIF(SUM(b),0)`), no `AVG`.
+- Filter values in AND-ed `column = literal`, `column IN (...)`, `column BETWEEN ... AND ...` conjuncts; OR and NOT elsewhere are fine.
+- `SUM`, `COUNT(*)`, `MIN`, `MAX`, `AVG`, and arithmetic, `ROUND` or `CASE` over them.
 - Literal dates (`>= '2026-01-01'`), never `CURRENT_DATE` expressions.
 - GROUP BY column names or ordinals; ORDER BY and LIMIT allowed (outer query only).
 - CTEs are fine when the CTE body follows the same rules.
 - Top-N rank queries: project the sort metric in SELECT (`SELECT dim, SUM(metric) AS rv ... ORDER BY rv DESC LIMIT N`), not only in ORDER BY.
 
-**Shapes that skip the cache** (they still run correctly, just slower):
-
-- `COUNT(DISTINCT x)`, window functions, HAVING, QUALIFY.
-- `OR` or `NOT` in WHERE.
-- Ratio metrics (`SUM(a)/NULLIF(SUM(b),0)`) - compute client-side or use two resolves; to show one as a percent, multiply by 100 in SQL (the format does not scale - `chart-patterns.md`).
-- `CURRENT_DATE`-relative predicates.
-- Top-N with the aggregate only in ORDER BY.
+**Shapes that skip the base** (correct, just slower on filter changes): `COUNT(DISTINCT x)`, `MEDIAN`, percentiles, window functions, HAVING, QUALIFY, and a resolve sent with `params` (each new value runs cold; a date parameter still prunes storage). To show a ratio as a percent, multiply by 100 in SQL (the format does not scale - `chart-patterns.md`).
 
 **Fresh anchors.** When a query needs a data-driven anchor - latest install date, a "days since" reference, a MAX(date) - never fetch it once at page load into a JS variable and reuse it across refreshes. A long-open tab silently goes stale and every maturity gate or rolling window computed against it drifts. Re-resolve the anchor inside each refresh cycle, or derive it in a subquery.
 

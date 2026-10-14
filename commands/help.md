@@ -1,5 +1,5 @@
 ---
-description: Explain what Graphit is and the first things to try. Use when the user asks "what is Graphit", "what can Graphit do", "how do I get started with Graphit", or wants a Graphit overview or quickstart.
+description: Explain what Graphit is and the first things to try. Use when the user asks "what is Graphit", "what can Graphit do", or wants a Graphit overview. For first-time setup ("onboard me", "get started"), use /graphit:onboard instead.
 ---
 
 Present this overview to the user, adapting the wording to fit the conversation:
@@ -18,6 +18,7 @@ Everything runs through a governed semantic layer - your team's shared definitio
 
 ## Plugin commands
 
+- `/graphit:onboard` - first-run setup: connect your data, or a tour of your team's workspace
 - `/graphit:doctor` - check plugin health: installed vs latest version, login status, and anything needing attention
 - `/graphit:update` - update the plugin and CLI to the latest version
 - `/graphit:login` - log in to Graphit (opens your browser)

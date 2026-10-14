@@ -35,9 +35,25 @@ export type Explore = {
 }
 // The full-SQL pane.
 export type SqlPane = { title: string; sql: string }
+
+// The one Query details sidebar the desktop card opens: which query (its row
+// key), the tab shown, both SQL texts, and the KB assets and rules it lists.
+export type DetailsTab = 'results' | 'sql' | 'lineage' | 'kb'
+export type DetailsRule = { title: string; badge: string; color: string; lines: string[] }
+export type DetailsView = {
+  rowKey: string
+  title: string
+  tab: DetailsTab
+  sql: { base?: string; runtime?: string; kind: 'base' | 'runtime' }
+  kb: KbSelection[]
+  rules: DetailsRule[]
+  // The KB tab's expanded rows: `${kind}:${name}` for an asset, `rule:${i}` for a rule.
+  open: string[]
+}
 // Feature #1067: the Full results sidebar - which query (its row key), the
 // search, the sorted column and how many rows it draws.
-export type ResultsView = { id: string; title: string; query: string; sort: string; desc: boolean; limit: number }
+// `top`: the first row the table's window shows; the wheel moves it.
+export type ResultsView = { id: string; title: string; query: string; sort: string; desc: boolean; top: number }
 
 // Feature #1067: the upstream lineage read for one query, through
 // the same graphit binary, with the caller's own KB and source permissions.
@@ -69,6 +85,7 @@ declare module 'claude-code' {
       queryViewExplore: Explore | null
       queryViewSqlPane: SqlPane | null
       queryViewResults: ResultsView | null
+      queryViewDetails: DetailsView | null
     }
   }
 }

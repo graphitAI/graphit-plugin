@@ -31,6 +31,20 @@ export function savedFor(id: string | undefined): { path: string; size: number }
   return id ? saved.get(id) : undefined
 }
 
+// The desktop draws its card where the call's tool.call never reached this
+// module's memory, and passes the engine's own stand-in for the moved output:
+// `<persisted-output>` naming the file. Only a file in a session's
+// tool-results folder is taken, and only when the stand-in opens the output.
+const PERSISTED = /^<persisted-output>\s*\nOutput too large \(([\d.]+)(KB|MB)\)\. Full output saved to: (\/\S+\/\.claude\/projects\/[^/\s]+\/[^/\s]+\/tool-results\/[\w-]+\.txt)\s*$/m
+
+export function savedFromPreview(output: unknown): { path: string; size: number } | undefined {
+  const text = typeof output === 'string' ? output : (output as { stdout?: unknown } | null)?.stdout
+  if (typeof text !== 'string' || !text.startsWith('<persisted-output>')) return undefined
+  const m = PERSISTED.exec(text)
+  if (!m) return undefined
+  return { path: m[3], size: Math.ceil(Number(m[1]) * (m[2] === 'MB' ? 1024 * 1024 : 1024)) }
+}
+
 export function parsedFor(path: string): QueryResult | null | undefined {
   return parsed.get(path)
 }

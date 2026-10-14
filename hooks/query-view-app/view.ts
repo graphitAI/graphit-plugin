@@ -121,12 +121,14 @@ root.addEventListener('click', event => {
       set({ drawer: { kind: 'explore' } })
       break
     case 'open-sql': {
-      const sql = arg === 'base' ? modelOf(payload, state, '').baseSql : payload.result.governed_sql
+      const m = modelOf(payload, state, '')
+      const sql = arg === 'base' ? m.baseSql : m.runSql
       set({ drawer: { kind: 'sql', title: arg === 'base' ? 'SQL as written' : 'SQL as run', sql: sql ?? '' } })
       break
     }
     case 'copy-sql': {
-      const sql = state.tab === 'base' ? modelOf(payload, state, '').baseSql : payload.result.governed_sql
+      const m = modelOf(payload, state, '')
+      const sql = state.tab === 'base' ? m.baseSql : m.runSql
       void copy(sql ?? '')
       break
     }

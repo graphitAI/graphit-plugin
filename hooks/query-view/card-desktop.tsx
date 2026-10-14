@@ -4,20 +4,17 @@
 // `position: "absolute"`, in character cells (about 8 x 18 px).
 
 import type { CardModel, Ui } from './card'
-import { OUTCOME_BADGE, REF_KIND, TIER_COLOR, TIER_LABEL, cell, clean, fmtNumber, marksFor, own } from './result'
+import { MAX_ROWS, OUTCOME_BADGE, REF_KIND, TIER_COLOR, TIER_LABEL, cell, clean, fmtNumber, marksFor, own } from './result'
 import { templateColor } from './spans'
 import { formatLines, lineText } from './sql'
-import type { TabId } from './state'
-import { columnWidths, fitColumns, renderCardSvg } from './svgcard'
+import type { DetailsTab, TabId } from './state'
+import { BAR_TABS_LEFT, bodyHeightFor, codeLinesFor, columnWidths, fitColumns, renderCardSvg } from './svgcard'
 import type { SvgPanel } from './svgcard'
 
 // Bands the SVG leaves empty for the native tabs and the footer controls,
 // sized so a row laid 4 cells down sits on the tab band's center line.
 const TOOLBAR_PX = 46
 const FOOTER_PX = 56
-// The card shows this many SQL lines; the sidebar shows them all.
-const CARD_SQL_LINES = 12
-
 export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
   const { Box, Text, Button, Svg } = ui
   const { active, result, injections, kbRefs, kbCount, hidden, cols, shown, upstream, layers } = m
@@ -41,7 +38,9 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
       const notes = [...new Set(marks.map(mk => mk.note).filter(Boolean))]
       return { tokens: line, mark: marks[0] ? { glyph: marks[0].marker, color: marks[0].color, note: notes.join(', ') } : undefined }
     }),
-    maxLines: CARD_SQL_LINES,
+    maxLines: sqlLines,
+    // The count of lines past the card is said in the footer, beside Open full SQL.
+    moreNote: false,
   })
   const panels: Record<TabId, () => SvgPanel> = {
     results: () => ({
@@ -55,10 +54,17 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
     chart: () => ({ kind: 'chart', spec: m.chart }),
     lineage: () => ({ kind: 'layers', spec: layers }),
     base: () => sqlPanel('base', m.baseSql),
-    runtime: () => sqlPanel('runtime', result.governed_sql),
+    runtime: () => sqlPanel('runtime', m.runSql),
+    // The KB tab holds the semantic references and, after them, the rules that
+    // changed the query: one tab, so the top bar keeps room for the meta.
     kb: () => ({
       kind: 'list',
-      items: kbRefs.map(ref => {
+      items: [...kbItems(), ...ruleItems()],
+    }),
+    governance: () => ({ kind: 'list', items: [...kbItems(), ...ruleItems()] }),
+  }
+  function kbItems() {
+    return kbRefs.map(ref => {
         const kindName = own(REF_KIND, ref.kind) ?? 'Metric'
         const x = m.expansionFor(kindName, ref.name ?? '')
         return {
@@ -66,11 +72,10 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
           badge: { text: kindName.toUpperCase(), color: templateColor(kindName) },
           lines: [`{{ ${kindName}('${cell(ref.name)}') }}`, ...(x.expr ? [`${x.expr === x.alias ? 'Column' : 'Compiles to'}  ${x.expr}`] : [])],
         }
-      }),
-    }),
-    governance: () => ({
-      kind: 'list',
-      items: injections.map(inj => {
+      })
+  }
+  function ruleItems() {
+    return injections.map(inj => {
         const outcome = own(OUTCOME_BADGE, inj.outcome) ?? { label: clean(inj.outcome ?? 'applied').toUpperCase(), color: '#6b7280' }
         return {
           title: cell(inj.rule_name ?? inj.source_id ?? 'rule'),
@@ -81,9 +86,13 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
             ...(inj.transformations ?? []).filter(t => t.column).map(t => `~ ${cell(t.column)} returned as NULL`),
           ],
         }
-      }),
-    }),
+      })
   }
+
+  // Sized by the first page, so paging to a short last page keeps the height.
+  const bodyH = bodyHeightFor(Math.min(result.rows.length, MAX_ROWS), hidden.size > 0)
+  // The card shows this many SQL lines; the sidebar shows them all.
+  const sqlLines = codeLinesFor(bodyH)
 
   const isSql = active === 'base' || active === 'runtime'
   const segments: Array<{ id: TabId; label: string; on: boolean; go: TabId }> = [
@@ -91,13 +100,14 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
     { id: 'runtime', label: 'SQL', on: isSql, go: isSql ? active : 'runtime' },
     { id: 'chart', label: 'Graph', on: active === 'chart', go: 'chart' },
     { id: 'lineage', label: 'Lineage', on: active === 'lineage', go: 'lineage' },
-    { id: 'kb', label: `KB (${kbCount})`, on: active === 'kb', go: 'kb' },
-    { id: 'governance', label: `Rules (${injections.length})`, on: active === 'governance', go: 'governance' },
+    { id: 'kb', label: `KB (${kbCount + injections.length})`, on: active === 'kb' || active === 'governance', go: 'kb' },
   ]
   const segment = (key: string, label: string, on: boolean, press: () => unknown) => (
-    <Button key={key} label={label} variant={on ? 'primary' : undefined} plain={on ? undefined : true} dimColor={!on} onPress={press} />
+    // Every tab is an outlined button (the active one filled), so tabs read as
+    // controls and the plain text beside them reads as information.
+    <Button key={key} label={label} variant={on ? 'primary' : 'secondary'} onPress={press} />
   )
-  const sqlText = clean((active === 'base' ? m.baseSql : result.governed_sql) ?? '')
+  const sqlText = clean((active === 'base' ? m.baseSql : m.runSql) ?? '')
   // Feature #1067: every footer reads from the left - the desktop sizes the
   // laid-over controls a little wider than the card's own cells, so a row
   // anchored to the right edge runs past it.
@@ -115,9 +125,46 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
             ? `Upstream not read: ${upstream.error ?? 'unknown error'}`
             : 'Showing the query only; load the upstream for the full chain'
       : undefined
-  const footer = active === 'results' && shown.length > 0 ? (
+  const card = renderCardSvg({
+    logoInner: m.logoInner,
+    // Governed is the expected case and goes unsaid; Verified and Ad hoc keep their pill.
+    tierLabel: m.tier === 'governed' ? '' : (own(TIER_LABEL, m.tier) ?? clean(m.tier)),
+    tierColor: own(TIER_COLOR, m.tier) ?? TIER_COLOR.ad_hoc,
+    meta: m.meta.join(' · '),
+    source: m.sourceName ? cell(m.sourceName) : undefined,
+    panel: panels[active](),
+    toolbar: TOOLBAR_PX,
+    // Feature #1067: every tab keeps the footer band and the body height, so
+    // switching tabs never changes the card's height.
+    footer: FOOTER_PX,
+    body: bodyH,
+    compactHeader: true,
+  })
+  // The one way into the sidebar: every tab's footer starts with Details, which
+  // opens the Query details sidebar on the matching tab.
+  const detailsTab: DetailsTab = isSql ? 'sql' : active === 'lineage' ? 'lineage' : active === 'kb' || active === 'governance' ? 'kb' : 'results'
+  const details = (
+    <Button
+      key={`details-${m.rowKey}`}
+      label="Details ↗"
+      variant="secondary"
+      onPress={() =>
+        m.act.openDetails({
+          tab: detailsTab,
+          sqlKind: active === 'base' ? 'base' : 'runtime',
+          kb: kbRefs.map(ref => {
+            const kind = own(REF_KIND, ref.kind) ?? 'Metric'
+            const x = m.expansionFor(kind, ref.name ?? '')
+            // The full name: the sidebar reads the definition by it and shortens it itself.
+            return { kind, name: clean(ref.name ?? ''), alias: x.alias, expansion: x.expr }
+          }),
+          rules: ruleItems().map(r => ({ title: r.title, badge: r.badge.text, color: r.badge.color, lines: r.lines })),
+        })
+      }
+    />
+  )
+  const extras = active === 'results' && shown.length > 0 ? (
     <Box justifyContent="flex-start" alignItems="center" gap={3}>
-      <Button key={`results-full-${m.rowKey}`} label="Full results ↗" variant="secondary" onPress={() => m.act.openResults()} />
       <Box alignItems="center" gap={2}>
         <Box alignItems="center" gap={1}>
           {m.pageCount > 2 ? <Button key={`pg-first-${m.rowKey}`} label="«" plain dimColor={m.page === 0} onPress={() => m.act.goTo(0)} /> : null}
@@ -137,12 +184,6 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
     </Box>
   ) : active === 'lineage' ? (
     <Box justifyContent="flex-start" alignItems="center" gap={1}>
-      <Button
-        key={`up-explore-${m.rowKey}`}
-        label="Explore lineage"
-        variant="secondary"
-        onPress={() => m.act.openExplorer(`${m.sourceName ?? 'Query'} lineage`, layers)}
-      />
       <Button
         key={`up-load-${m.rowKey}`}
         label={upstream?.status === 'ok' ? 'Reload' : upstream?.status === 'loading' ? 'Loading…' : 'Load upstream'}
@@ -169,36 +210,26 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
       {sqlText ? (
         <Button key={`sql-copy-${m.id}`} label="Copy" plain onPress={() => m.act.copy(formatLines(sqlText).map(lineText).join('\n'))} />
       ) : null}
-      {sqlText ? (
-        <Button
-          key={`sql-open-${m.id}`}
-          label="Open full SQL"
-          variant="secondary"
-          onPress={() => m.act.openSql(active === 'base' ? 'SQL as written' : 'SQL as run', sqlText)}
-        />
-      ) : null}
+      {card.more > 0 ? <Text dimColor>{`+${card.more} more line${card.more === 1 ? '' : 's'}`}</Text> : null}
       </Box>
     </Box>
   ) : null
+  const footer = (
+    <Box justifyContent="flex-start" alignItems="center" gap={3}>
+      {details}
+      {extras}
+    </Box>
+  )
 
-
-  const card = renderCardSvg({
-    logoInner: m.logoInner,
-    tierLabel: own(TIER_LABEL, m.tier) ?? clean(m.tier),
-    tierColor: own(TIER_COLOR, m.tier) ?? TIER_COLOR.ad_hoc,
-    meta: m.meta.join(' · '),
-    source: m.sourceName ? cell(m.sourceName) : undefined,
-    panel: panels[active](),
-    toolbar: TOOLBAR_PX,
-    // Feature #1067: every tab keeps the footer band, so the card's height never changes.
-    footer: FOOTER_PX,
-  })
   return (
     <Box flexDirection="column" marginTop={1} alignSelf="flex-start">
       {/* Feature #1067: the lineage tab draws interactive, so a node's <title> shows its full name on hover. */}
       <Svg key="card" source={card.svg} alt={`Graphit query result: ${m.meta.join(', ')}`} width={card.width} height={card.height} isInteractive={active === 'lineage' || undefined} />
-      {/* The tab band: tabs on the left, the query switcher on the right. */}
-      <Box position="absolute" top={4} left={2} right={2} alignItems="center" justifyContent="space-between">
+      {/* The one top bar after the mark: tabs on the left; the tier (unless governed) and meta on the
+          right, native text so they share the tabs' font and baseline. */}
+      {/* Flows left to right, never anchored to the right edge: native cells are
+          wider than the picture's pixels assume, so a right anchor lands past the card. */}
+      <Box position="absolute" top={1} left={BAR_TABS_LEFT} alignItems="center" gap={1}>
         <Box alignItems="center" gap={1}>
           {segments.map(t =>
             segment(`tab-${t.id}`, t.label, t.on, async () => {
@@ -207,10 +238,20 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
             }),
           )}
         </Box>
-        {m.nav}
+        <Box alignItems="center" gap={1} flexShrink={1} marginLeft={1}>
+          {/* The divider between the tabs and the meta, mirroring the one after the mark. */}
+          <Text dimColor>│</Text>
+          {m.tier !== 'governed' ? <Text color={own(TIER_COLOR, m.tier) ?? TIER_COLOR.ad_hoc}>{`● ${own(TIER_LABEL, m.tier) ?? clean(m.tier)}`}</Text> : null}
+          <Text dimColor wrap="truncate-end">{m.meta.join(' · ')}</Text>
+          {/* cell() cuts a long name to 24 characters with "…", so the bar stays inside the card. */}
+          {m.sourceName ? <Text dimColor wrap="truncate-end">{cell(m.sourceName)}</Text> : null}
+        </Box>
       </Box>
-      {footer ? (
-        <Box position="absolute" bottom={2} left={2} right={2}>
+      {/* The footer: the tab's controls, then the query switcher (a carousel's), flowing from the
+          left like the top bar so nothing lands past the card's right edge. */}
+      {footer || m.nav ? (
+        <Box position="absolute" bottom={2} left={2} alignItems="center" gap={3}>
+          {m.nav}
           {footer}
         </Box>
       ) : null}

@@ -1,5 +1,5 @@
 // Feature #1067: the query card drawn as one SVG on the desktop - a
-// frosted panel (gradient, hairline, soft shadow), the chalk G, system type and
+// frosted panel (gradient, hairline, soft shadow), the chalk G on a charcoal disc, system type and
 // a real table. Pure: no `$`; every value from the query is XML-escaped here.
 
 import type { Token } from './sql'
@@ -10,13 +10,14 @@ import type { Layers } from './upstream'
 
 export type SvgPanel =
   | { kind: 'table'; columns: string[]; rows: string[][]; hidden: Set<string>; numeric: boolean[]; note?: string }
-  | { kind: 'code'; lines: Array<{ tokens: Token[]; mark?: { glyph: string; color: string; note: string } }>; maxLines?: number }
+  | { kind: 'code'; lines: Array<{ tokens: Token[]; mark?: { glyph: string; color: string; note: string } }>; maxLines?: number; moreNote?: boolean }
   | { kind: 'list'; items: Array<{ title: string; titleColor?: string; badge?: { text: string; color: string }; lines: string[] }> }
   | { kind: 'chart'; spec: ChartSpec | null }
   | { kind: 'layers'; spec: Layers; note?: string }
 
 export type SvgCardInput = {
   logoInner: string
+  // The tier pill's text; empty draws no pill.
   tierLabel: string
   tierColor: string
   meta: string
@@ -28,7 +29,20 @@ export type SvgCardInput = {
   source?: string
   // The footer band's caption (a pager's row range).
   status?: string
+  // The panel's height (px), fixed for the card across its tabs; BODY_H when unset.
+  body?: number
+  // One top bar instead of a header row over a tab band: the picture draws
+  // only the mark on its left; the caller lays the native tabs after it (1 cell
+  // down, BAR_TABS_LEFT cells in) and the tier and meta as native text on its right.
+  compactHeader?: boolean
 }
+
+// The one bar's top inset: with the tabs laid one cell (about 18px) down, their
+// center falls on the bar's own (inset + half the band).
+export const COMPACT_HEADER_ROW = 12
+// Cells (about 8px) from the card's left edge to the first tab: past the mark
+// and the hairline divider after it.
+export const BAR_TABS_LEFT = 8
 
 const W = 720
 // Sized so a native control row laid over it (one cell, about 18px, down)
@@ -36,20 +50,41 @@ const W = 720
 const HEADER_ROW = 66
 // The native switcher laid one cell down centers here.
 const ROW_MID = 31
-// The chalk G's box: the brand mark drawn as is, black body and chalk outline.
-const MARK_W = 30
-const MARK_H = 34
+// The header mark's height: a charcoal disc carrying the chalk G.
+const MARK_H = 30
 
 const PAD = 22
-// Feature #1067: one body height for every tab and result size - a header row
-// and ten table rows plus a note line - so a card never changes height and the
-// transcript never jumps. Every panel fits it; the sidebars hold the rest.
+// Feature #1067: the tallest body - a header row and ten table rows plus a note
+// line. Every panel fits it; the sidebars hold the rest.
 export const BODY_H = 300
+const CODE_LINE_H = 21
+const MAX_CODE_LINES = 12
+// The shortest body: seven SQL lines, room for a small graph and a two-node
+// lineage column.
+const MIN_BODY_H = 16 + 7 * CODE_LINE_H
+const TABLE_ROW_H = 24
+
+// One body height per card, set by its result table (the tab it opens on) so a
+// three-row answer is not drawn in a ten-row frame. It holds for every tab of
+// that card, so switching tabs never moves the transcript; a longer SQL, KB or
+// rule list ends in a "more" line and the sidebars hold the rest.
+export function bodyHeightFor(rows: number, note: boolean): number {
+  const table = 30 + rows * TABLE_ROW_H + 6 + (note ? 24 : 0)
+  return Math.min(BODY_H, Math.max(MIN_BODY_H, table))
+}
+
+// How many SQL lines a body of this height shows when the "more lines" count
+// is said outside the picture (moreNote: false).
+export function codeLinesFor(body: number): number {
+  return Math.min(MAX_CODE_LINES, Math.max(3, Math.floor((body - 16) / CODE_LINE_H)))
+}
 const FONT = "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif"
 const MONO = "'SF Mono', ui-monospace, Menlo, monospace"
 const INK = '#1D1D1F'
 const SUB = '#6E6E73'
 const HAIR = 'rgba(0,0,0,0.08)'
+// Brand Graphite Charcoal: the disc the chalk G sits on, as on the app's sidebar.
+const INK_MARK = '#222224'
 
 const TOKEN_FILL: Record<string, string> = {
   kw: '#9B4DCA',
@@ -99,7 +134,7 @@ export function fitColumns(widths: number[], start: number): number {
 
 function tableSvg(p: Extract<SvgPanel, { kind: 'table' }>, top: number): { body: string; height: number } {
   const px = 13
-  const rowH = 24
+  const rowH = TABLE_ROW_H
   const widths = columnWidths(p.columns, p.rows, p.hidden)
   const xs: number[] = []
   widths.reduce((x, w, i) => ((xs[i] = x), x + w), PAD)
@@ -134,7 +169,7 @@ function tableSvg(p: Extract<SvgPanel, { kind: 'table' }>, top: number): { body:
 
 // Long lines wrap under their own indent (no line number on a continuation);
 // past maxLines the card stops and says how many lines the sidebar holds.
-function codeSvg(p: Extract<SvgPanel, { kind: 'code' }>, top: number): { body: string; height: number } {
+function codeSvg(p: Extract<SvgPanel, { kind: 'code' }>, top: number): { body: string; height: number; more: number } {
   const px = 12.5
   const lineH = 21
   const gutter = PAD + 26
@@ -191,19 +226,19 @@ function codeSvg(p: Extract<SvgPanel, { kind: 'code' }>, top: number): { body: s
     }
   })
   let height = shown.length * lineH + 16
-  if (hiddenLines > 0) {
+  if (hiddenLines > 0 && p.moreNote !== false) {
     out += `<text x="${PAD}" y="${top + height + 18}" font-size="12" fill="${SUB}">${xml(`${hiddenLines} more line${hiddenLines === 1 ? '' : 's'} - open the full SQL in the sidebar`)}</text>`
     height += 28
   }
-  return { body: out, height }
+  return { body: out, height, more: Math.max(0, hiddenLines) }
 }
 
-function listSvg(p: Extract<SvgPanel, { kind: 'list' }>, top: number): { body: string; height: number } {
+function listSvg(p: Extract<SvgPanel, { kind: 'list' }>, top: number, bodyH: number): { body: string; height: number } {
   let out = ''
   let y = top
   for (const [index, item] of p.items.entries()) {
     const need = 36 + item.lines.length * 20
-    if (y + need > top + BODY_H - 24 && index > 0) {
+    if (y + need > top + bodyH - 24 && index > 0) {
       const rest = p.items.length - index
       out += `<text x="${PAD}" y="${y + 16}" font-size="12" fill="${SUB}">${xml(`+${rest} more`)}</text>`
       break
@@ -242,7 +277,7 @@ function niceStep(max: number, ticks: number): number {
   return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * mag
 }
 
-function chartSvg(p: Extract<SvgPanel, { kind: 'chart' }>, top: number): { body: string; height: number } {
+function chartSvg(p: Extract<SvgPanel, { kind: 'chart' }>, top: number, bodyH: number): { body: string; height: number } {
   const spec = p.spec
   if (!spec) {
     return { body: `<text x="${PAD}" y="${top + 20}" font-size="13" fill="${SUB}">Nothing to graph: the result needs a category or date column and a number column.</text>`, height: 32 }
@@ -259,7 +294,7 @@ function chartSvg(p: Extract<SvgPanel, { kind: 'chart' }>, top: number): { body:
     out += `<text x="${lx + 14}" y="${top + 16}" font-size="12" fill="${SUB}">${xml(name)}</text>`
   }
   const plotTop = top + 36
-  const plotH = BODY_H - 36 - 50
+  const plotH = bodyH - 36 - 50
   const left = PAD + 52
   const right = W - PAD
   const plotW = right - left
@@ -379,11 +414,11 @@ function capLayers(spec: Layers, room: (layer: Layers['layers'][number]) => numb
   return { layers, edges }
 }
 
-function layersSvg(panel: Extract<SvgPanel, { kind: 'layers' }>, top: number): { body: string; height: number } {
+function layersSvg(panel: Extract<SvgPanel, { kind: 'layers' }>, top: number, bodyH: number): { body: string; height: number } {
   const labelH = 26
   const gapY = 10
   const areaTop = top + labelH
-  const areaH = BODY_H - labelH - 4
+  const areaH = bodyH - labelH - 4
   const spec = capLayers(overviewLayers(panel.spec), layer => Math.max(2, Math.floor((areaH + gapY) / (nodeHeight(layer) + gapY))))
   const cols = Math.max(1, spec.layers.length)
   const label = (l: string) => SHORT_LABEL[l] ?? l
@@ -449,7 +484,7 @@ function layersSvg(panel: Extract<SvgPanel, { kind: 'layers' }>, top: number): {
     if (between.length) {
       const above = Math.min(...between.map(c => c.top)) - 7
       const below = Math.max(...between.map(c => c.bottom)) + 7
-      const g = Math.abs((y1 + y2) / 2 - above) <= Math.abs((y1 + y2) / 2 - below) ? Math.max(areaTop - 4, above) : Math.min(top + BODY_H - 4, below)
+      const g = Math.abs((y1 + y2) / 2 - above) <= Math.abs((y1 + y2) / 2 - below) ? Math.max(areaTop - 4, above) : Math.min(top + bodyH - 4, below)
       const xa = between[0].left - 4
       const xb = between[between.length - 1].right + 4
       d =
@@ -474,32 +509,47 @@ function layersSvg(panel: Extract<SvgPanel, { kind: 'layers' }>, top: number): {
       out += '</g>'
     }
   }
-  return { body: out, height: BODY_H }
+  return { body: out, height: bodyH }
 }
 
-export function renderCardSvg(input: SvgCardInput): { svg: string; width: number; height: number } {
+export function renderCardSvg(input: SvgCardInput): { svg: string; width: number; height: number; more: number } {
   // Feature #1067: a window-style card. The toolbar band carries the
-  // chalk G and the tier pill (native tabs are laid between them); the footer
+  // brand mark and the tier pill (native tabs are laid between them); the footer
   // band is a status bar, its text drawn here and its controls laid over it.
   const T = input.toolbar ?? 0
   const F = input.footer ?? 0
-  // Header row (chalk G, tier, meta) on top, then the tab band, then the panel.
-  const HR = HEADER_ROW
+  // Header row (brand mark, tier, meta) on top, then the tab band, then the panel.
+  const slim = input.compactHeader === true
+  const HR = slim ? COMPACT_HEADER_ROW : HEADER_ROW
   const top = HR + T + 10
-  const panel =
+  const B = input.body ?? BODY_H
+  const panel: { body: string; height: number; more?: number } =
     input.panel.kind === 'table'
       ? tableSvg(input.panel, top)
       : input.panel.kind === 'code'
         ? codeSvg(input.panel, top)
         : input.panel.kind === 'chart'
-          ? chartSvg(input.panel, top)
+          ? chartSvg(input.panel, top, B)
           : input.panel.kind === 'layers'
-              ? layersSvg(input.panel, top)
-              : listSvg(input.panel, top)
-  const H = top + BODY_H + 14 + F
+              ? layersSvg(input.panel, top, B)
+              : listSvg(input.panel, top, B)
+  const H = top + B + 14 + F
+  // The mark is a charcoal disc carrying the chalk outline traced from the
+  // app's own small-size render (graphit-logo.svg, 432 units square): the
+  // full-size vector's thin chalk strokes blur to grey this small, and the
+  // card's SVG draws no embedded images.
+  const markH = slim ? 26 : MARK_H
+  const markW = markH
+  // In the one-bar layout the picture holds only the mark and its divider, on
+  // the native tabs' center line (measured 4px above the band's); the tier and
+  // meta are native text beside the tabs, so they share the tabs' font and baseline.
+  const rowMid = slim ? HR + T / 2 - 4 : ROW_MID
+  const markCx = PAD + markW / 2
+  const markCy = rowMid
+  const source = input.source
+  const pillH = 22
   const pillW = textWidth(input.tierLabel, 12) + 30
-  const pillX = PAD + MARK_W + 10
-  const rowMid = ROW_MID
+  const pillX = PAD + markW + 10
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H + 24}" viewBox="0 0 ${W} ${H + 24}" font-family="${xml(FONT)}">
 <defs>
   <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
@@ -515,27 +565,30 @@ export function renderCardSvg(input: SvgCardInput): { svg: string; width: number
     <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#222224" flood-opacity="0.08"/>
   </filter>
   <clipPath id="cardclip"><rect x="1" y="1" width="${W - 2}" height="${H}" rx="18"/></clipPath>
-  <clipPath id="bodyclip"><rect x="0" y="${top - 4}" width="${W}" height="${BODY_H + 8}"/></clipPath>
+  <clipPath id="bodyclip"><rect x="0" y="${top - 4}" width="${W}" height="${B + 8}"/></clipPath>
 </defs>
 <g filter="url(#shadow)">
   <rect x="1" y="1" width="${W - 2}" height="${H}" rx="18" fill="url(#glass)"/>
 </g>
 <rect x="1" y="1" width="${W - 2}" height="${H}" rx="18" fill="url(#sheen)"/>
 <g clip-path="url(#cardclip)">
-${T ? `<rect x="0" y="${HR}" width="${W}" height="${T}" fill="rgba(118,118,128,0.07)"/><line x1="0" x2="${W}" y1="${HR}" y2="${HR}" stroke="rgba(0,0,0,0.07)"/><line x1="0" x2="${W}" y1="${HR + T}" y2="${HR + T}" stroke="rgba(0,0,0,0.07)"/>` : ''}
+${T && slim ? `<rect x="0" y="0" width="${W}" height="${HR + T}" fill="rgba(118,118,128,0.07)"/><line x1="0" x2="${W}" y1="${HR + T}" y2="${HR + T}" stroke="rgba(0,0,0,0.09)"/>` : ''}
+${T && !slim ? `<rect x="0" y="${HR}" width="${W}" height="${T}" fill="rgba(118,118,128,0.07)"/><line x1="0" x2="${W}" y1="${HR}" y2="${HR}" stroke="rgba(0,0,0,0.07)"/><line x1="0" x2="${W}" y1="${HR + T}" y2="${HR + T}" stroke="rgba(0,0,0,0.07)"/>` : ''}
 ${F ? `<rect x="0" y="${H - F}" width="${W}" height="${F + 2}" fill="rgba(118,118,128,0.07)"/><line x1="0" x2="${W}" y1="${H - F}" y2="${H - F}" stroke="rgba(0,0,0,0.07)"/>` : ''}
 </g>
 <rect x="1.5" y="1.5" width="${W - 3}" height="${H - 1}" rx="17.5" fill="none" stroke="rgba(255,255,255,0.9)"/>
-<rect x="0.5" y="0.5" width="${W - 1}" height="${H + 1}" rx="18.5" fill="none" stroke="${HAIR}"/>
-<svg x="${PAD}" y="${rowMid - MARK_H / 2}" width="${MARK_W}" height="${MARK_H}" viewBox="0 0 878 1000">${input.logoInner}</svg>
-<rect x="${pillX}" y="${rowMid - 11}" width="${pillW}" height="22" rx="11" fill="${input.tierColor}" fill-opacity="0.14"/>
+<rect x="0.5" y="0.5" width="${W - 1}" height="${H + 1}" rx="18.5" fill="none" stroke="${slim ? 'rgba(0,0,0,0.14)' : HAIR}"/>
+${slim && T ? `<line x1="${PAD + markW + 8}" x2="${PAD + markW + 8}" y1="${rowMid - 11}" y2="${rowMid + 11}" stroke="rgba(0,0,0,0.12)"/>` : ''}
+<circle cx="${markCx}" cy="${markCy}" r="${markH / 2}" fill="${INK_MARK}"/>
+<svg x="${markCx - markH / 2}" y="${markCy - markH / 2}" width="${markH}" height="${markH}" viewBox="0 0 432 432">${input.logoInner}</svg>
+${input.tierLabel && !slim ? `<rect x="${pillX}" y="${rowMid - pillH / 2}" width="${pillW}" height="${pillH}" rx="${pillH / 2}" fill="${input.tierColor}" fill-opacity="0.14"/>
 <circle cx="${pillX + 11}" cy="${rowMid}" r="3.5" fill="${input.tierColor}"/>
-<text x="${pillX + 19}" y="${rowMid + 4}" font-size="12" font-weight="600" fill="${input.tierColor}">${xml(input.tierLabel)}</text>
-<text x="${W - PAD}" y="${rowMid + 4}" text-anchor="end" font-size="12" fill="${SUB}" style="font-variant-numeric: tabular-nums">${xml(input.meta)}${input.source ? `<tspan> · </tspan><tspan font-weight="700" fill="${INK}">${xml(input.source)}</tspan>` : ''}</text>
+<text x="${pillX + 19}" y="${rowMid + 4}" font-size="12" font-weight="600" fill="${input.tierColor}">${xml(input.tierLabel)}</text>` : ''}
+${slim ? '' : `<text x="${W - PAD}" y="${rowMid + 4}" text-anchor="end" font-size="12" fill="${SUB}" style="font-variant-numeric: tabular-nums">${xml(input.meta)}${source ? `<tspan> · </tspan><tspan font-weight="700" fill="${INK}">${xml(source)}</tspan>` : ''}</text>`}
 ${F && input.status ? `<text x="${PAD}" y="${H - F / 2 + 4}" font-size="12" fill="${SUB}" style="font-variant-numeric: tabular-nums">${xml(input.status)}</text>` : ''}
 <g clip-path="url(#bodyclip)">${panel.body}</g>
 </svg>`
-  return { svg, width: W, height: H + 24 }
+  return { svg, width: W, height: H + 24, more: panel.more ?? 0 }
 }
 
 

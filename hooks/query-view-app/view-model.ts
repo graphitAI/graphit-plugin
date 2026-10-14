@@ -94,7 +94,7 @@ export function kbDefOf(stdout: string): KbDef {
 }
 
 const noop = async () => undefined
-const ACTIONS: CardActions = { setTab: noop, goTo: noop, goCols: noop, openKb: noop, loadUpstream: noop, openExplorer: noop, openSql: noop, openResults: noop, copy: noop }
+const ACTIONS: CardActions = { setTab: noop, goTo: noop, goCols: noop, openKb: noop, loadUpstream: noop, openExplorer: noop, openSql: noop, openResults: noop, openDetails: noop, copy: noop }
 
 export function modelOf(payload: Payload, state: ViewState, logoInner: string) {
   return buildModel({
@@ -150,7 +150,7 @@ export function renderCard(payload: Payload, state: ViewState, logoInner: string
     chart: () => ({ kind: 'chart', spec: m.chart }),
     lineage: () => ({ kind: 'layers', spec: layers }),
     base: () => sqlPanel('base', m.baseSql),
-    runtime: () => sqlPanel('runtime', result.governed_sql),
+    runtime: () => sqlPanel('runtime', m.runSql),
     kb: () => ({
       kind: 'list',
       items: kbRefs.map(ref => {
@@ -191,7 +191,7 @@ export function renderCard(payload: Payload, state: ViewState, logoInner: string
   ]
 
   const n = (x: number) => x.toLocaleString('en-US')
-  const sqlText = clean((active === 'base' ? m.baseSql : result.governed_sql) ?? '')
+  const sqlText = clean((active === 'base' ? m.baseSql : m.runSql) ?? '')
   let footer = ''
   if (active === 'results' && shown.length > 0) {
     footer =

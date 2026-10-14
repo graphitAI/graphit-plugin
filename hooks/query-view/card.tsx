@@ -7,7 +7,7 @@ import { MAX_ROWS, OUTCOME_BADGE, REF_KIND, cell, clean, own, sqlFromCommand } f
 import type { QueryResult } from './result'
 import { templateExpansions } from './sql'
 import type { Expansion } from './sql'
-import type { TabId, Upstream } from './state'
+import type { DetailsRule, DetailsTab, KbSelection, TabId, Upstream } from './state'
 import { lineageLayers, warehouseTables } from './upstream'
 import type { Layers } from './upstream'
 import { chartSpec } from './viz'
@@ -22,6 +22,9 @@ export type CardModel = {
   nav: unknown
   result: QueryResult
   baseSql: string | undefined
+  // "As run": the governed rewrite, else the SQL as written - an ad-hoc query
+  // no rule touched returns no governed_sql, and it ran exactly as written.
+  runSql: string | undefined
   active: TabId
   tier: string
   injections: NonNullable<NonNullable<NonNullable<QueryResult['provenance']>['injection_summary']>['injections']>
@@ -60,6 +63,9 @@ export type CardActions = {
   openExplorer: (title: string, layers: Layers) => Promise<unknown>
   openSql: (title: string, sql: string) => Promise<unknown>
   openResults: () => Promise<unknown>
+  // The desktop card's one sidebar: Query details, opened on a tab, carrying
+  // the KB assets and rules the card already has in hand.
+  openDetails: (input: { tab: DetailsTab; sqlKind: 'base' | 'runtime'; kb: KbSelection[]; rules: DetailsRule[] }) => Promise<unknown>
   copy: (text: string) => unknown
 }
 
@@ -96,8 +102,8 @@ export function buildModel(input: {
   const rowCount = result.row_count ?? result.rows.length
   const hidden = new Set((result.hidden_columns ?? []).map(String))
 
+  // The query's own --limit is in its SQL tab; the meta never repeats it.
   const meta: string[] = [`${rowCount.toLocaleString('en-US')} rows`]
-  if (result.truncated) meta.push('truncated by --limit')
   if (typeof result.query_ms === 'number') meta.push(`${result.query_ms.toFixed(0)}ms`)
 
   const cols = (result.columns?.length ? result.columns : Object.keys(result.rows[0] ?? {})).map(String)
@@ -122,6 +128,7 @@ export function buildModel(input: {
     nav,
     result,
     baseSql,
+    runSql: result.governed_sql ?? baseSql,
     active: state.tab ?? 'results',
     tier: clean(prov.tier ?? 'ad_hoc'),
     injections,

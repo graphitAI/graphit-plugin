@@ -8,7 +8,7 @@ import { KIND_LABEL, capitalize, cell, clean, own } from './result'
 import { templateColor, tokenSpans } from './spans'
 import { codeChunks, formatLines, prettySql, tokenize } from './sql'
 import type { Explore, KbDef, KbSelection, SqlPane } from './state'
-import { renderFlowSvg } from './flow'
+import { CELL_W, renderFlowSvg } from './flow'
 import { renderHeroSvg } from './svgcard'
 import { chainOf } from './upstream'
 import type { Layers } from './upstream'
@@ -147,7 +147,10 @@ export type ExploreActions = {
 // A node's SQL shows this many lines in the explorer; Open full SQL has the rest.
 const SQL_PREVIEW_LINES = 12
 
-export function drawExplorer(ui: Ui, ex: Explore | null, act: ExploreActions): unknown {
+// `columns`: the pane body's width in cells. The flow is laid out across all of
+// it, so a wide layer spreads out instead of wrapping, and a wider (or
+// maximized) pane redraws it wider.
+export function drawExplorer(ui: Ui, ex: Explore | null, act: ExploreActions, columns?: number): unknown {
   const { Box, Text, Button, Code, Svg } = ui
   if (!ex) return <Text dimColor>Open Lineage on a query result, then Explore lineage.</Text>
   const nodes = ex.layers.flatMap(l => l.nodes.map(n => ({ ...n, layer: l.label })))
@@ -190,19 +193,12 @@ export function drawExplorer(ui: Ui, ex: Explore | null, act: ExploreActions): u
       <Text bold>{`${titleCase(kind)}: ${title}`}</Text>
     )
   }
+  // Only inside a node, and saying where it goes: the node visited before this
+  // one, or the overview. The overview needs no bar: its tab already says Lineage.
+  const prev = ex.trail.length ? byId.get(ex.trail[ex.trail.length - 1]) : undefined
   const navBar = (
-    <Box justifyContent="space-between" alignItems="center">
-      <Box gap={1} alignItems="center">
-        <Button
-          key="lx-back"
-          label="‹ Back"
-          plain
-          dimColor={ex.trail.length === 0}
-          onPress={() => act.back()}
-        />
-        <Text dimColor>{sel ? `Lineage › ${titleCase(sel.layer)}` : 'Lineage'}</Text>
-      </Box>
-      {sel ? <Button key="lx-all" label="All layers" plain onPress={() => act.all()} /> : null}
+    <Box alignItems="center">
+      <Button key="lx-back" label={prev ? `‹ ${prev.title}` : '‹ All layers'} variant="secondary" onPress={() => act.back()} />
     </Box>
   )
 
@@ -212,7 +208,9 @@ export function drawExplorer(ui: Ui, ex: Explore | null, act: ExploreActions): u
   // drawn (flow.ts). Pressing a node opens it here.
   const flow = (key: string, spec: Layers, focus?: string) => {
     if (!Svg) return null
-    const drawn = renderFlowSvg(spec, { focus })
+    // The body's cells less the explorer's own padding, never narrower than the old fixed 400px.
+    const width = columns ? Math.max(400, (columns - 4) * CELL_W) : undefined
+    const drawn = renderFlowSvg(spec, { focus, width })
     const alt = focus ? `Lineage of ${sel?.title ?? ''}` : `${ex.title}, top to bottom`
     return (
       <Box key={key} flexDirection="column" alignSelf="flex-start">
@@ -253,7 +251,6 @@ export function drawExplorer(ui: Ui, ex: Explore | null, act: ExploreActions): u
   if (!sel) {
     return (
       <Box flexDirection="column" gap={1} paddingX={1}>
-        {navBar}
         {hero('LINEAGE', ex.title, `${ex.layers.length} layers · ${nodes.length} nodes`, '#4DB6AC')}
         {/* The drawing is the navigation; without one (the terminal), the layers as rows. */}
         {Svg ? flow('lx-flow', spec) : ex.layers.map((layer, li) => group(`ly${li}`, layer.label, layer.nodes.map((n, ni) => navRow(n, `ln${li}-${ni}`))))}
