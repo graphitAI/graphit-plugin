@@ -45,6 +45,8 @@ export const COMPACT_HEADER_ROW = 12
 export const BAR_TABS_LEFT = 8
 
 const W = 720
+// The card's width in native cells (about 8px each), for bounding laid-over controls.
+export const CARD_CELLS = W / 8
 // Sized so a native control row laid over it (one cell, about 18px, down)
 // sits on its center line.
 const HEADER_ROW = 66
@@ -283,20 +285,29 @@ function chartSvg(p: Extract<SvgPanel, { kind: 'chart' }>, top: number, bodyH: n
     return { body: `<text x="${PAD}" y="${top + 20}" font-size="13" fill="${SUB}">Nothing to graph: the result needs a category or date column and a number column.</text>`, height: 32 }
   }
   let out = ''
-  // Title and legend.
   out += `<text x="${PAD}" y="${top + 16}" font-size="13" font-weight="600" fill="${INK}">${xml(clip(`${spec.measure} by ${spec.x}`, 60))}</text>`
-  let lx = W - PAD
-  for (let i = spec.series.length - 1; i >= 0 && spec.series.length > 1; i--) {
-    const name = clip(spec.series[i].name, 16)
-    const w = textWidth(name, 12) + 22
-    lx -= w
-    out += `<circle cx="${lx + 5}" cy="${top + 12}" r="4.5" fill="${SERIES_COLORS[i]}"/>`
-    out += `<text x="${lx + 14}" y="${top + 16}" font-size="12" fill="${SUB}">${xml(name)}</text>`
-  }
+  // The legend is a row under the axis labels, so it never runs into the title.
+  const legend = spec.series.length > 1
   const plotTop = top + 36
-  const plotH = bodyH - 36 - 50
+  const plotH = bodyH - 36 - 50 - (legend ? 22 : 0)
   const left = PAD + 52
   const right = W - PAD
+  if (legend) {
+    const ly = plotTop + plotH + 40
+    const noteW = spec.note ? textWidth(spec.note, 11.5) + 16 : 0
+    let lx = left
+    for (let i = 0; i < spec.series.length; i++) {
+      const name = clip(spec.series[i].name, 16)
+      const w = textWidth(name, 12) + 22
+      if (i > 0 && lx + w > right - noteW) {
+        out += `<text x="${lx}" y="${ly + 4}" font-size="12" fill="${SUB}">${xml(`+${spec.series.length - i} more`)}</text>`
+        break
+      }
+      out += `<circle cx="${lx + 5}" cy="${ly}" r="4.5" fill="${SERIES_COLORS[i]}"/>`
+      out += `<text x="${lx + 14}" y="${ly + 4}" font-size="12" fill="${SUB}">${xml(name)}</text>`
+      lx += w
+    }
+  }
   const plotW = right - left
   const values = spec.series.flatMap(s => s.values.filter((v): v is number => v !== null))
   const maxV = Math.max(0, ...values)
@@ -352,7 +363,7 @@ function chartSvg(p: Extract<SvgPanel, { kind: 'chart' }>, top: number, bodyH: n
   if (spec.note) {
     out += `<text x="${right}" y="${plotTop + plotH + 40}" text-anchor="end" font-size="11.5" fill="${SUB}">${xml(spec.note)}</text>`
   }
-  return { body: `<defs>${defs}</defs>${out}`, height: 36 + plotH + (spec.note ? 50 : 30) }
+  return { body: `<defs>${defs}</defs>${out}`, height: 36 + plotH + (spec.note || legend ? 50 : 30) }
 }
 
 

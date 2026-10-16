@@ -8,7 +8,7 @@ import { MAX_ROWS, OUTCOME_BADGE, REF_KIND, TIER_COLOR, TIER_LABEL, cell, clean,
 import { templateColor } from './spans'
 import { formatLines, lineText } from './sql'
 import type { DetailsTab, TabId } from './state'
-import { BAR_TABS_LEFT, bodyHeightFor, codeLinesFor, columnWidths, fitColumns, renderCardSvg } from './svgcard'
+import { BAR_TABS_LEFT, CARD_CELLS, bodyHeightFor, codeLinesFor, columnWidths, fitColumns, renderCardSvg } from './svgcard'
 import type { SvgPanel } from './svgcard'
 
 // Bands the SVG leaves empty for the native tabs and the footer controls,
@@ -229,8 +229,10 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
           right, native text so they share the tabs' font and baseline. */}
       {/* Flows left to right, never anchored to the right edge: native cells are
           wider than the picture's pixels assume, so a right anchor lands past the card. */}
-      <Box position="absolute" top={1} left={BAR_TABS_LEFT} alignItems="center" gap={1}>
-        <Box alignItems="center" gap={1}>
+      {/* A fixed width so the meta truncates inside the card: the desktop draws native cells
+          about 9px against the picture's 8, hence the margin on the right. */}
+      <Box position="absolute" top={1} left={BAR_TABS_LEFT} width={CARD_CELLS - BAR_TABS_LEFT - 8} alignItems="center" gap={1}>
+        <Box alignItems="center" gap={1} flexShrink={0}>
           {segments.map(t =>
             segment(`tab-${t.id}`, t.label, t.on, async () => {
               await m.act.setTab(t.go)
@@ -238,13 +240,12 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
             }),
           )}
         </Box>
-        <Box alignItems="center" gap={1} flexShrink={1} marginLeft={1}>
+        <Box alignItems="center" gap={1} flexShrink={1} minWidth={0} marginLeft={1}>
           {/* The divider between the tabs and the meta, mirroring the one after the mark. */}
           <Text dimColor>│</Text>
           {m.tier !== 'governed' ? <Text color={own(TIER_COLOR, m.tier) ?? TIER_COLOR.ad_hoc}>{`● ${own(TIER_LABEL, m.tier) ?? clean(m.tier)}`}</Text> : null}
-          <Text dimColor wrap="truncate-end">{m.meta.join(' · ')}</Text>
-          {/* cell() cuts a long name to 24 characters with "…", so the bar stays inside the card. */}
-          {m.sourceName ? <Text dimColor wrap="truncate-end">{cell(m.sourceName)}</Text> : null}
+          {/* Meta and source as one line, so the source name is what truncates at the bar's end. */}
+          <Text dimColor wrap="truncate-end">{[m.meta.join(' · '), m.sourceName ? cell(m.sourceName) : ''].filter(Boolean).join(' · ')}</Text>
         </Box>
       </Box>
       {/* The footer: the tab's controls, then the query switcher (a carousel's), flowing from the

@@ -82,7 +82,7 @@ After the first connector, say once:
 > - **Org:** the whole company.
 > - **Domain groups** like Sales or Finance, each with its own access.
 >
-> **Teams:** people you share dashboards with, created in Graphit under Teams. Admins and editors can change a team's dashboards, viewers can only look. "Lock" a dashboard to make it view-only for everyone.
+> **Teams:** people you share dashboards with. Admins and editors can change a team's dashboards, viewers can only look. Lock a dashboard you own to make it view-only for others.
 >
 > **Three skills**
 > - **Explore:** answers. "Why did revenue drop last week?"
@@ -91,7 +91,7 @@ After the first connector, say once:
 >
 > Just ask in plain words and I'll pick the right one.
 
-Admins only, add: "As an admin you decide who can query or edit each group, and you can add governance rules."
+Admins only, add: "As an admin you decide who can query or edit each group, add governance rules, and set up teams."
 
 ## Existing org
 
@@ -103,7 +103,7 @@ No connector step. Open with the same four blocks filled from the snapshot:
 >
 > **Knowledge base:** {groups that are org or domain, with metric counts}. **Private** is yours only; anything you build starts there.
 >
-> **Teams:** {each team with the user's role}. Editors can change a team's dashboards, viewers can only look. Teams are managed in Graphit under Teams.
+> **Teams:** {each team with the user's role}. Editors can change a team's dashboards, viewers can only look.
 > Team dashboards: {team_dashboards}.
 >
 > **Three skills:** the same three lines as the orientation.
@@ -113,7 +113,7 @@ No connector step. Open with the same four blocks filled from the snapshot:
 
 Adjust to what the snapshot shows:
 - Admin: add the admin line from the orientation.
-- No team: "You're not in a team yet. An admin can add you under Teams."
+- No team: "You're not in a team yet. An admin can add you." An admin: offer to create one.
 - No team dashboards: option 1 becomes "Show me what data we have".
 - Connectors but no data sources: skip connecting, go to onboarding.md "Ask what to investigate".
 - A build or share refused for permissions: say the admin grants edit access; do not retry.
@@ -122,4 +122,4 @@ Option 1 opens the dashboard and suggests one follow-up question. Option 2 answe
 
 ## First share
 
-The first time the user shares a dashboard with a team, add once: "Shared with {team}. Editors can change it, viewers can only look. Say 'lock it' for view-only. Edits to a shared dashboard stay in your draft until you publish."
+Sharing with no team yet: an org admin can create one first (the share skill). The first team share adds once: "Shared with {team}. Editors can change it, viewers can only look. Say 'lock it' for view-only. Edits to a shared dashboard stay in your draft until you publish."
