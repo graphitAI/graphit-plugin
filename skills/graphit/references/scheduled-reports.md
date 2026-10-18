@@ -1,11 +1,12 @@
 # Scheduled Reports
 
-Load before creating, changing, sending or troubleshooting a scheduled report: a dashboard emailed or posted to Slack on a schedule, optionally with agent commentary. A report delivers an existing dashboard, so build or pick the dashboard first. Delivery from a private source still needs Share for the source and its bound model.
+Load before creating, changing, sending or troubleshooting a scheduled report: a dashboard emailed or posted to Slack on a schedule, optionally with agent commentary. A report delivers an existing dashboard, so build or pick the dashboard first. Delivery from a private source still needs Share for the source and its bound model. If a report cannot do the job (multi-step work, or results written back into Graphit), see scheduling.md.
 
 ## Before creating
 
 - Before `report create`, check `report list --dashboard <id>` and update an existing report instead of creating a second.
 - Resolve destinations with `report destinations`: the Slack channels the bot can post to, the org's members (name and email) and its allowed email domains. Map the user's words ("#growth", "Dana") to those entries; an address outside members and allowed domains is refused.
+- When `report destinations` lists no Slack channels, Slack isn't connected yet: offer email now, and say an org admin can add Slack from Add connector in the Graphit web app; its channels then appear here.
 - Add only recipients and channels the user named. Confirm destinations, schedule and timezone in one line before `report create`; never widen delivery on your own.
 - A report and its commentary render with the creator's data access - yours when you create it. Say so when the recipients differ from who can open the dashboard.
 

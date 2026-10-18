@@ -26,6 +26,7 @@ import { claudePluginsRoot, inspectClaudeInstalledPlugin } from "./plugin-status
 import { cloudRefreshApplies, refreshPluginInCloud } from "./plugin-status/cloud-refresh.mjs";
 // Project #305: status only reads Cursor state - never the installer or removal exports.
 import { cursorPluginsRoot, inspectCursor } from "./plugin-status/cursor-install.mjs";
+import { findLauncherOnPath } from "./plugin-status/cursor-launcher.mjs";
 import { armCutoff, buildHookNudges, shouldRunForPrompt, stampSessionMarker } from "./plugin-status/hook-io.mjs";
 import { detectHost, formatContext } from "./plugin-status/host.mjs";
 
@@ -54,6 +55,12 @@ const REPAIRABLE_BUNDLE_ENTRIES = [
 const TTL_MS = 4 * 60 * 60 * 1000;
 // Feature #1042: the budget every hook run had before hooks.json gave startup 120 s.
 const LOCAL_HOOK_CUTOFF_MS = 5000;
+// Feature #1150: Cursor allowlists one fixed command prefix, so every call uses it.
+// With setup's `graphit` launcher first on PATH, that prefix is the one word Cursor's
+// Run prompt offers, so the user approves Graphit with a single click.
+const CURSOR_COMMAND_FORM =
+  "[Graphit plugin] In Cursor, run every Graphit command as npx -y @graphit/cli@latest <command>, one per call; never a pinned version.";
+const CURSOR_LAUNCHER_FORM = "[Graphit plugin] In Cursor, run every Graphit command as graphit <command>, one per call.";
 const args = new Set(process.argv.slice(2));
 const shouldRepair = args.has("--repair") || args.has("--auto-repair");
 const isPreflight = args.has("--preflight");
@@ -76,11 +83,13 @@ function inspectsPluginBundle(bundle) {
 }
 
 function currentBundle() {
-  return classifyBundle(pluginRoot, {
+  const bundle = classifyBundle(pluginRoot, {
     claudePluginsRoot: claudePluginsRoot(),
     cursorPluginsRoot: cursorPluginsRoot(),
     hasRootEnv: pluginRootFromEnv !== undefined,
   });
+  // Feature #1150: Cursor update advice names `graphit setup ...` when the launcher is set up.
+  return { ...bundle, launcher: findLauncherOnPath()?.ours ?? false };
 }
 
 // Project #305: the manifest the running host loads must exist; the others are
@@ -251,13 +260,17 @@ async function collectStatus({ hookPayload, host, bundle }) {
       latestVersion: null,
       auth,
       metadata: [],
-      findings: [
-        {
-          type: "metadata-drift",
-          message: `Could not determine Graphit plugin version from ${pluginRoot}`,
-          remediation: "Reinstall the Graphit plugin from the marketplace, then rerun `graphit plugin status`.",
-        },
-      ],
+      // Feature #1150: a root without a bundle (a wrapper reached through a link)
+      // must not print "reinstall" on every command's preflight.
+      findings: isPreflight
+        ? []
+        : [
+            {
+              type: "metadata-drift",
+              message: `Could not determine Graphit plugin version from ${pluginRoot}`,
+              remediation: "Reinstall the Graphit plugin from the marketplace, then rerun `graphit plugin status`.",
+            },
+          ],
     };
   }
   const findings = [];
@@ -366,7 +379,7 @@ async function collectStatus({ hookPayload, host, bundle }) {
   // under ~/.cursor from a CLI run's health check.
   if (!isPreflight) {
     const inspection = inspectCursor({ workspaceRoots: cursorWorkspaceRoots(hookPayload, host) });
-    findings.push(...cursorFindings(inspection, { pluginRoot, currentVersion, latestVersion }));
+    findings.push(...cursorFindings(inspection, { pluginRoot, currentVersion, latestVersion, launcher: bundle.launcher }));
   }
 
   return {
@@ -447,7 +460,15 @@ if (isMainModule()) {
     console.log(JSON.stringify(status, null, 2));
   } else if (hookEvent) {
     const nudge = buildHookNudges(status, { cacheRoot, pluginRoot, suppressPluginUpdate: cloudStartup, host, bundle });
-    const context = [refreshLine, nudge?.context].filter(Boolean).join("\n");
+    // Feature #1150: a Cursor agent read SKILL.md's pinned form as its own; only
+    // Cursor runs this line, so it cannot be misread as another host's rule.
+    const cursorForm =
+      host === "cursor" && hookEvent === "SessionStart"
+        ? findLauncherOnPath()?.ours
+          ? CURSOR_LAUNCHER_FORM
+          : CURSOR_COMMAND_FORM
+        : null;
+    const context = [cursorForm, refreshLine, nudge?.context].filter(Boolean).join("\n");
     if (context) {
       console.log(JSON.stringify(formatContext(host, hookEvent, context)));
       nudge?.persist();

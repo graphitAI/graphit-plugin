@@ -5,7 +5,7 @@
 
 import { App, applyDocumentTheme, applyHostStyleVariables } from '@modelcontextprotocol/ext-apps/app-with-deps'
 import type { TabId } from '../query-view/state'
-import { INITIAL_STATE, RESULTS_STEP, kbDefOf, modelOf, payloadOf, renderCard, upstreamOf } from './view-model'
+import { INITIAL_STATE, RESULTS_STEP, kbDefOf, modelOf, payloadOf, renderCard, restorePayload, savePayload, upstreamOf } from './view-model'
 import type { Payload, ViewState } from './view-model'
 
 declare const GRAPHIT_LOGO_INNER: string
@@ -160,14 +160,41 @@ function applyHost(): void {
   if (ctx?.styles?.variables) applyHostStyleVariables(ctx.styles.variables)
 }
 
+// Feature #1150: the hand-off id arrives with the tool input, before the result.
+// A re-mounted card that gets the input but no result redraws from its saved copy.
+let handoffId: unknown = null
+
+function storage(): Storage | null {
+  try {
+    return window.sessionStorage
+  } catch {
+    return null
+  }
+}
+
+app.ontoolinput = params => {
+  handoffId = params.arguments?.id ?? null
+  if (payload) {
+    // The result came first: save it now that the id is known.
+    savePayload(storage(), handoffId, payload)
+    return
+  }
+  const saved = restorePayload(storage(), handoffId)
+  if (saved) {
+    payload = saved
+    draw()
+  }
+}
+
 app.ontoolresult = result => {
   const next = payloadOf(result.structuredContent)
   if (!next) {
-    root.innerHTML = '<p class="muted">This Graphit result has no rows to draw.</p>'
+    if (!payload) root.innerHTML = '<p class="muted">This Graphit result has no rows to draw.</p>'
     return
   }
   payload = next
   state = { ...INITIAL_STATE }
+  savePayload(storage(), handoffId, result.structuredContent)
   draw()
 }
 app.onhostcontextchanged = () => applyHost()

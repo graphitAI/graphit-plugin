@@ -65,14 +65,18 @@ function cliSpec(version) {
   return isStrictSemver(version) ? `${PACKAGE_NAME}@${version}` : PACKAGE_NAME;
 }
 
-export function cursorSetupCommand(version, flag) {
-  return `npx -y ${cliSpec(version)} setup --editor cursor ${flag}`;
+// Feature #1150: with setup's `graphit` launcher on PATH the command starts with
+// `graphit`, which Cursor already allowlists, so updating raises no Run/Skip prompt.
+// The launcher runs the same latest version the hook resolved, so nothing is unpinned.
+export function cursorSetupCommand(version, flag, { launcher = false } = {}) {
+  return launcher ? `graphit setup --editor cursor ${flag}` : `npx -y ${cliSpec(version)} setup --editor cursor ${flag}`;
 }
 
 // The update steps for the bundle's install kind. `latestVersion` is the version the
-// update moves to; it is interpolated only when it is strict semver.
-export function pluginUpdateSteps({ kind, autoRegistered = false }, latestVersion) {
-  const cursorLocal = `run \`${cursorSetupCommand(latestVersion, "--update")}\`, then reload Cursor`;
+// update moves to; it is interpolated only when it is strict semver. `launcher`: the
+// caller found setup's marked `graphit` launcher first on PATH.
+export function pluginUpdateSteps({ kind, autoRegistered = false, launcher = false }, latestVersion) {
+  const cursorLocal = `run \`${cursorSetupCommand(latestVersion, "--update", { launcher })}\`, then reload Cursor`;
   switch (kind) {
     case "cursor-local":
       return `In Cursor, ${cursorLocal}.`;
@@ -92,7 +96,8 @@ export function pluginUpdateSteps({ kind, autoRegistered = false }, latestVersio
 
 // The plugin-update finding's remediation. The Claude Code wording is unchanged. Only
 // Claude Code puts the plugin's bin/ on PATH, so only there can a global install shadow
-// it; Cursor and an npx run call a pinned `npx -y @graphit/cli@<version>` instead.
+// it; Cursor calls `npx -y @graphit/cli@latest` (Feature #1150) and an npx run a
+// pinned `npx -y @graphit/cli@<version>` instead.
 export function pluginUpdateRemediation(bundle, currentVersion, latestVersion) {
   const steps = pluginUpdateSteps(bundle, latestVersion);
   if (isClaudeManagedKind(bundle.kind)) {
@@ -119,12 +124,12 @@ export const CURSOR_FINDING_TYPES = ["cursor-double-load", "cursor-local-plugin-
 
 // Project #305: the Cursor-side findings, from one inspectCursor() result. Report-only:
 // each remedy is a command the user runs; nothing here deletes or installs.
-export function cursorFindings(inspection, { pluginRoot, currentVersion, latestVersion }) {
+export function cursorFindings(inspection, { pluginRoot, currentVersion, latestVersion, launcher = false }) {
   const target =
     isStrictSemver(latestVersion) && isStrictSemver(currentVersion) && compareVersions(latestVersion, currentVersion) > 0
       ? latestVersion
       : currentVersion;
-  const removeCommand = cursorSetupCommand(target, "--remove-legacy-copies");
+  const removeCommand = cursorSetupCommand(target, "--remove-legacy-copies", { launcher });
   const { local, routeA, routeC } = inspection;
   const findings = [];
   if (inspection.doubleLoad) {
@@ -151,7 +156,7 @@ export function cursorFindings(inspection, { pluginRoot, currentVersion, latestV
     findings.push({
       type: "cursor-local-plugin-stale",
       message: `Cursor's local Graphit plugin at ${local.path}${found}${expected}`,
-      remediation: `Run \`${cursorSetupCommand(target, "--update")}\`, then reload Cursor.`,
+      remediation: `Run \`${cursorSetupCommand(target, "--update", { launcher })}\`, then reload Cursor.`,
     });
   }
   for (const rule of inspection.legacyRules) {

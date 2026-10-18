@@ -67,6 +67,53 @@ export function payloadOf(structured: unknown): Payload | null {
   return { command: typeof s?.command === 'string' ? s.command : '', result }
 }
 
+// Feature #1150: a host may re-mount the card without re-sending its result, so
+// the view keeps a copy under the call's hand-off id (random per query, unlike
+// the JSON-RPC toolInfo.id that repeats across connections). The copy is query
+// data: the view keeps it in sessionStorage (gone when Cursor closes) and drops
+// it after the hand-off file's 48 h. Storage may be blocked or full in a
+// sandboxed frame; every access is best-effort.
+type KeyStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+type Saved = { at: number; structured: unknown }
+const HANDOFF_ID = /^q_[0-9a-f]{12}$/
+const SAVED_PREFIX = 'graphit-view:'
+const SAVED_INDEX = `${SAVED_PREFIX}index`
+const SAVED_MAX_AGE_MS = 48 * 60 * 60 * 1000
+export const SAVED_MAX = 20
+
+function readSaved(storage: KeyStore, id: string, now: number): Saved | null {
+  const saved = JSON.parse(storage.getItem(SAVED_PREFIX + id) ?? 'null') as Saved | null
+  return saved && typeof saved.at === 'number' && now - saved.at <= SAVED_MAX_AGE_MS ? saved : null
+}
+
+export function savePayload(storage: KeyStore | null, id: unknown, structured: unknown, now = Date.now()): void {
+  if (!storage || typeof id !== 'string' || !HANDOFF_ID.test(id) || !payloadOf(structured)) return
+  try {
+    const index: string[] = []
+    for (const k of JSON.parse(storage.getItem(SAVED_INDEX) ?? '[]') as unknown[]) {
+      if (typeof k !== 'string' || !HANDOFF_ID.test(k) || k === id) continue
+      if (readSaved(storage, k, now)) index.push(k)
+      else storage.removeItem(SAVED_PREFIX + k)
+    }
+    index.push(id)
+    for (const old of index.splice(0, Math.max(0, index.length - SAVED_MAX))) storage.removeItem(SAVED_PREFIX + old)
+    storage.setItem(SAVED_PREFIX + id, JSON.stringify({ at: now, structured } satisfies Saved))
+    storage.setItem(SAVED_INDEX, JSON.stringify(index))
+  } catch {
+    // Blocked or over quota: the card still draws from the live result.
+  }
+}
+
+export function restorePayload(storage: KeyStore | null, id: unknown, now = Date.now()): Payload | null {
+  if (!storage || typeof id !== 'string' || !HANDOFF_ID.test(id)) return null
+  try {
+    const saved = readSaved(storage, id, now)
+    return saved ? payloadOf(saved.structured) : null
+  } catch {
+    return null
+  }
+}
+
 // Upstream from the query_upstream tool's raw CLI answers, as the mod builds it.
 export function upstreamOf(
   answer: { dsList?: unknown; history?: unknown; models?: unknown; metrics?: unknown[]; notFound?: string; stderr?: string } | null,

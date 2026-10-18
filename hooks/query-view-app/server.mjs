@@ -44,7 +44,8 @@ const TOOLS = [
     description:
       "Show the result of a `graphit query` that just ran as an interactive card in the chat: results, SQL, " +
       "graph, lineage, KB definitions and rules. Call it with the result id the Graphit plugin named after the " +
-      "query output. Afterwards refer to the card and add analysis only; do not re-print its table.",
+      "query output. Afterwards refer to the card; show its table in your reply only when the Graphit " +
+      "plugin's note asks for it.",
     inputSchema: {
       type: "object",
       properties: { id: { type: "string", description: "The result id the Graphit plugin named, e.g. q_0123456789ab." } },
@@ -188,7 +189,9 @@ function showQueryResult(args) {
     return { content: [{ type: "text", text: buildMarkdown(saved.result) }] };
   }
   return {
-    content: [{ type: "text", text: `The result is shown to the user as an interactive card (${count} rows). Do not reproduce its table; refer to it and add analysis only.` }],
+    // Feature #1150: the hook's note decides whether the reply repeats the table
+    // (Cursor builds that fold the card away), so this text never forbids it.
+    content: [{ type: "text", text: `The result is shown to the user as an interactive card (${count} rows). Show its table in your reply only if the Graphit plugin's note asked for it.` }],
     structuredContent: { command: saved.command, result: saved.result },
     _meta: { ui: { resourceUri: UI_URI } },
   };

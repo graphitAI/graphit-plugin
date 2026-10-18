@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync
 import { delimiter, join } from "node:path";
 
 import { CURSOR_FINDING_TYPES, pluginUpdateNudge } from "./bundle-kind.mjs";
+import { isOurLauncher } from "./cursor-launcher.mjs";
 import {
   CACHE_SCHEMA_VERSION,
   atomicWriteJson,
@@ -61,6 +62,8 @@ function detectForeignGraphit(pluginRoot) {
       const real = realpathSafe(candidate);
       if (ownWrapperReals.has(real)) continue; // our own bundled wrapper
       if (/[/\\]plugins[/\\]/.test(real)) continue; // a plugin-cache wrapper
+      // Feature #1150: setup's Cursor launcher runs the same latest CLI as the wrapper.
+      if (isOurLauncher(candidate)) continue;
       return candidate;
     }
   }

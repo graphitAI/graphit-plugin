@@ -12,6 +12,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { PLUGIN_ID, isStrictSemver, isWithinDirectory, readFrontmatterVersion, tryReadJson } from "./common.mjs";
+import { installLauncher, launcherDir, removeLauncher } from "./cursor-launcher.mjs";
 
 export function cursorPluginsRoot(home = homedir()) {
   return process.env.CURSOR_PLUGINS_ROOT ?? join(home, ".cursor", "plugins");
@@ -426,6 +427,51 @@ export function removeCursorLegacy(options = {}) {
 const SETUP = "npx -y @graphit/cli setup --editor cursor";
 
 const RELOAD = "Reload Cursor (Developer: Reload Window) to load it.";
+// Feature #1150: Cursor allowlists by command prefix, and its Run prompt offers the
+// command's opening word. With the `graphit` launcher that word is `graphit`, so
+// approval is two clicks; without it the user types the npx entry into Settings.
+// Printed here because every Cursor user runs setup, before the agent's first command.
+// Cursor saves the card's Always Run as `plugin-graphit-graphit-view:*` but checks
+// `graphit-view`, so that click never sticks (seen in Cursor 3.25's MCP allowlist log).
+const CARD_STEP =
+  "  2. In Cursor Settings > Agents > Execution and Approvals, add `graphit-view:*` to the MCP Allowlist, so query result cards show without asking. Always Run on the card does not stick in current Cursor versions.";
+const ONE_CLICK_APPROVALS = [
+  "",
+  "Approve Graphit once, so Cursor stops asking before each step:",
+  "  1. On the first Graphit step, Cursor asks to run a `graphit ...` command: click Always Run.",
+  CARD_STEP,
+  "  Graphit commands then run without asking, including ones that change things.",
+];
+const MANUAL_APPROVALS = [
+  "",
+  "Approve Graphit once, so Cursor stops asking before each step:",
+  "  1. Cursor Settings > Agents > Execution and Approvals: add `npx -y @graphit/cli@latest` to the Command Allowlist.",
+  "     Do not accept Cursor's suggested `npx -y`, which allows any package.",
+  CARD_STEP,
+  "  Graphit commands then run without asking, including ones that change things.",
+  "  If the lists can't be edited, they come from ~/.cursor/permissions.json or your Cursor admin.",
+];
+const LAUNCHER_READY = new Set(["installed", "updated", "current"]);
+const LAUNCHER_STEPS = new Set(["installed", "updated", "noop", "would-install", "would-update", "skipped-route-a"]);
+
+export function formatLauncher(launcher) {
+  const notes = {
+    installed: [`Added the \`graphit\` command at ${launcher.path}.`],
+    updated: [`Updated the \`graphit\` command at ${launcher.path}.`],
+    current: [],
+    "would-install": [`Dry run - would add the \`graphit\` command at ${launcher.path}.`],
+    "would-update": [`Dry run - would update the \`graphit\` command at ${launcher.path}.`],
+    "legacy-global": [
+      `An old global Graphit install owns \`graphit\` at ${launcher.path}. Remove it with \`npm uninstall -g @graphit/cli\`, then run \`${SETUP}\` again for one-click approval.`,
+    ],
+    foreign: [`Another program named \`graphit\` is at ${launcher.path}; Graphit left it alone.`],
+    unwritable: [`Could not add the \`graphit\` command: ${launcher.dir ?? launcher.path} is not writable.`],
+    "no-dir": ["Could not add the `graphit` command: no npx was found on PATH or next to Node."],
+    unsupported: [],
+  }[launcher.action] ?? [];
+  if (launcher.action.startsWith("would-")) return notes;
+  return [...notes, ...(LAUNCHER_READY.has(launcher.action) ? ONE_CLICK_APPROVALS : MANUAL_APPROVALS)];
+}
 // Versions here come from user-writable files: printed only when strict semver.
 const v = (version) => (isStrictSemver(version) ? ` ${version}` : "");
 const INSTALL_MESSAGES = {
@@ -448,9 +494,14 @@ const INSTALL_MESSAGES = {
   updated: (r) => [`Updated Graphit to ${r.version} for Cursor at ${r.path}.`, RELOAD],
 };
 
-function formatInstall(result) {
+export function formatInstall(result, launcher = null) {
   const lines = INSTALL_MESSAGES[result.action]?.(result) ?? [`Graphit was not installed for Cursor: ${result.reason ?? result.action}.`];
-  return [...lines, ...result.warnings.map((warning) => `Warning: ${warning}`)];
+  return [...lines, ...(result.warnings ?? []).map((warning) => `Warning: ${warning}`), ...(launcher ? formatLauncher(launcher) : [])];
+}
+
+// Tests and managed machines point this elsewhere, as with CURSOR_PLUGINS_ROOT.
+function launcherTarget() {
+  return process.env.GRAPHIT_LAUNCHER_DIR || launcherDir();
 }
 
 function formatRemoval(result, dryRun) {
@@ -477,7 +528,13 @@ function main(argv) {
   if (args.has("--install")) {
     const result = installCursorLocal({ ...roots, update: args.has("--update"), dryRun });
     json = { install: result };
-    lines = formatInstall(result);
+    // Feature #1150: also on the Claude Code route (owner decision), where Cursor
+    // loads Graphit from the Claude cache and setup installs nothing else.
+    const launcher = LAUNCHER_STEPS.has(result.action)
+      ? installLauncher({ dir: launcherTarget(), dryRun: dryRun || result.action.startsWith("would-") })
+      : null;
+    if (launcher) json.launcher = launcher;
+    lines = formatInstall(result, launcher);
     failed = result.action === "failed" || result.action === "refused";
     // Flow 2: once the local copy is the one Cursor loads, retire the global .mdc rule.
     if (["installed", "updated", "noop", "would-install", "would-update"].includes(result.action)) {
@@ -490,6 +547,13 @@ function main(argv) {
     const removal = removeCursorLegacy({ ...roots, includeRedundantLocal: true, dryRun });
     json = { legacy: removal };
     lines = formatRemoval(removal, dryRun);
+    // Feature #1150: with no Graphit copy left in Cursor, our launcher has nothing to serve.
+    if (removal.installHint) {
+      const gone = removeLauncher({ dir: launcherTarget(), dryRun });
+      json.launcher = gone;
+      if (gone.action === "removed") lines.push(`Removed the \`graphit\` command at ${gone.path}.`);
+      if (gone.action === "would-remove") lines.push(`Would remove the \`graphit\` command at ${gone.path}.`);
+    }
     for (const reason of removal.uncertain) lines.push(`Note: ${reason}`);
     failed = removal.failed.length > 0;
   } else if (args.has("--inspect")) {

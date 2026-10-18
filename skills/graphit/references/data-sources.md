@@ -7,7 +7,7 @@ Load when selecting or creating the cached source a semantic model uses.
 1. Read the semantic model's declared data-source binding and physical `model` table name.
 2. Prefer that cached source for speed, governance, and repeatability.
 3. Use metadata discovery when physical columns are unknown.
-4. Query live warehouse only when no cached source covers the question and the user approves.
+4. Query live warehouse only when no cached source covers the question and the user approves. If `status` shows direct warehouse queries not allowed, never query live: offer a private source instead.
 5. Never infer a source from a similarly named model.
 
 `--ds` selects the cached source by its returned name, full id, or unique id prefix. It does not make an arbitrary semantic-model name a SQL table. In SQL, use the physical table name read from the bound model's `model`; do not guess it from the source's display name or a second model's `name`.
@@ -54,7 +54,7 @@ Show the estimate and its basis whenever you propose a source. After approval, i
 
 To keep working while it builds: where you can run a command in the background, run the normal `ds create` that way. Small sources stay fast, and you are told when it exits (exit 1 = failed). Otherwise use `ds create --no-wait`: it returns `creating` at once but always takes the background build, so even a small source takes a few minutes. Read it with `ds status <id>`; `ds status <id> --wait` waits for it and belongs only in the background. Start one build at a time: each holds one of the workspace's few concurrent build slots.
 
-Before creating, run one small approved warehouse validation against the same connection: relations reachable, joins compile with a small limit, the join does not multiply the declared grain. That read is part of the approved data-source operation - it does not authorize unrelated live exploration.
+Before creating, run one small approved warehouse validation against the same connection: relations reachable, joins compile with a small limit, the join does not multiply the declared grain. That read is part of the approved data-source operation - it does not authorize unrelated live exploration. Without direct warehouse access (`status` shows direct queries not allowed, the default for an invited member), skip this read and the `COUNT(*)`; they would be refused. Estimate from shape and history only, let the build report unreachable relations and SQL errors, then check row count and grain with a `--ds` query on the new source.
 
 Create with automatic scan unless there is a specific reason not to. The scan creates or updates the source's bound semantic model in its selected scope; `ds verify` runs that scan when needed. Read the resulting model and extend it instead of hand-creating another one over the source. Creation may be asynchronous; report `creating` honestly and poll status rather than claiming readiness.
 

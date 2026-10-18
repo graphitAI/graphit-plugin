@@ -33,7 +33,7 @@ Use the business question already supplied. Ask one structured question only if 
 
 ## 3. Create the data source
 
-Explain that answering the question fast needs a cached data source over the connection, not repeated live-warehouse queries.
+Explain that repeated questions and dashboards need a cached data source over the connection, not repeated live-warehouse queries. One small live query the user chose, for a quick first answer, is fine when `graphit status` shows direct warehouse queries allowed. Without that (the default for an invited member), run no live query in this step, including the aggregate below: build the source and answer from it.
 
 **Use the selected intent.** Explore scratch work and Private first Build create sources with `--domain Private`, without a group interview or group creation. In Share, agree audience/group and use the uppercase policy key returned by `graphit status` or `domain_keys`; `kb-scope.md` owns exact placement and permissions. Create a shared group only when authorized. An empty workspace does not imply org commons.
 
@@ -43,7 +43,7 @@ Explain that answering the question fast needs a cached data source over the con
 graphit metadata columns --connection <id> --schema <name> --table <name>
 ```
 
-This needs no governed reference. An aggregate or `GROUP BY` against a warehouse table that is not yet in the knowledge base is a different matter, so use it for shape rather than probing with a query.
+This needs no governed reference. Use it for shape rather than probing with a query: an aggregate or `GROUP BY` against a warehouse table not yet in the knowledge base runs only with the user's go-ahead and an ad-hoc reason.
 
 For private work, create the source (Share uses the agreed policy key):
 
