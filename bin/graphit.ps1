@@ -7,7 +7,7 @@ if (-not $env:GRAPHIT_PLUGIN_ROOT) {
 }
 
 # graphit:floor (stamped by scripts/sync-plugin-version.mjs from cli/package.json)
-$FloorVersion = "0.2.430"
+$FloorVersion = "0.2.432"
 
 $PackageName = "@graphit/cli"
 # Strict semver: anything else is rejected so a tampered cache cannot inject.
@@ -32,8 +32,9 @@ if (Test-Path -LiteralPath $cacheFile) {
   }
 }
 
+# Feature #1154: see the bash wrapper; keep the message identical.
 if (-not (Get-Command npx -ErrorAction SilentlyContinue)) {
-  Write-Error "graphit: npx (Node.js >=18) is required but was not found on PATH."
+  Write-Error "graphit: Node.js 18 or newer is required (npx was not found on PATH). Install the LTS from https://nodejs.org yourself and approve the admin prompt if one appears - never as a silent background install. Then restart your app or terminal."
   exit 127
 }
 

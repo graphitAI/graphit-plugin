@@ -2,24 +2,24 @@
 
 Load for CLI/plugin concerns: session start, health, permission errors (403/404/423), output or local artifacts. Skip on healthy build/query turns.
 
-Depth that lives elsewhere: installing, updating, or repairing Graphit -> references/install-update.md. Reporting a failure or a partial result -> references/reporting.md. Sharing/publication refused with `private_dashboard_dependencies` or `dashboard_sharing_unverified` -> read references/sharing-recovery.md for visible blockers and authorized recovery.
+Depth that lives elsewhere: installing, updating, or repairing Graphit -> install-update.md. Reporting a failure or a partial result -> reporting.md. Sharing/publication refused with `private_dashboard_dependencies` or `dashboard_sharing_unverified` -> read sharing-recovery.md for visible blockers and authorized recovery.
 
 Governance itself is enforced server-side by the query gateway: a governed query is rejected by the platform, not the CLI, so never claim to have blocked a query locally. The one local guard is a session tripwire - until this skill attests at session start (below), the CLI declines commands that change org state or that assert a governance decision (`--adhoc-reason`, `--override-rules`, `--skip-conditional`). That guard is about this session, never about the query itself, and dropping those flags does not skip governance - the server still decides.
 
 ## Session start
 
-Start once per session with `graphit plugin status --skill-ack --json`: it attests skill use and returns version state plus `auth` (`logged_in`, `email`). Reuse an established result across workflow transitions; chain no other startup calls. Attestation is best-effort: do not loop on failure, but surface it if a later command is BLOCKED.
+Start once per session with `graphit plugin status --skill-ack --json`: it attests skill use and returns version state plus `auth` (`logged_in`, `email`; a token or proxy run adds `auth_method` and has a null `email`). Reuse an established result across workflow transitions; chain no other startup calls. Attestation is best-effort: do not loop on failure, but surface it if a later command is BLOCKED.
 
-When a request is present, skip the greeting and put the signed-in identity in the first useful result line. With no request, greet. Apply this version/auth 2x2 in either case:
+When a request is present, skip the greeting and put the signed-in identity in the first useful result line. With no request, greet. Token runs never `auth login` (`auth_method` `refused`: fix the secret). Apply this version/auth 2x2 in either case:
 
 - Current + signed in: proceed with the request; otherwise "Hi {auth.email}, what can we do today?"
 - Current + signed out: "Let's get you signed in," then run `graphit auth login` for them, once. It opens a browser and blocks on a localhost callback (~2 min) and cannot complete in a non-interactive, headless, or sandboxed context - if it fails or cannot run, fall back to telling the user to run it themselves; never loop. Re-check, then proceed.
 - Update available + signed in: "A new version is out. Update first?" Any gap counts (major, minor, or patch). On yes, update, then proceed.
 - Update available + signed out: "You're not signed in and there's a new version. Update first, then sign in?" Update, then sign in, then proceed.
 
-Updates are always a one-tap ask, never silent; auto sign-in only when the version is current. Never report ready off the version check alone - readiness means a live session. Update mechanics (which command, custom prefixes, plugin vs binary) live in references/install-update.md.
+Updates are always a one-tap ask, never silent; auto sign-in only when the version is current. Never report ready off the version check alone - readiness means a live session. Update mechanics (which command, custom prefixes, plugin vs binary) live in install-update.md.
 
-If the combined call rejects `--skill-ack` as an unknown option, recover version/auth evidence once with `graphit plugin status --json`; that option failure alone is not staleness. A status call failing with "command not found" / "unknown command" means the CLI is too old: report that (include a version only if known) and offer the update via references/install-update.md. Network/auth failures are not version evidence. Do not report ready without live auth.
+If the combined call rejects `--skill-ack` as an unknown option, recover version/auth evidence once with `graphit plugin status --json`; that option failure alone is not staleness. A missing Node.js is not a stale CLI: exit 127 with "Node.js 18 or newer is required", or "node: command not found" / "'node' is not recognized" from a hook or command, means Node is missing; follow the Prerequisites in install-update.md instead of offering an update. A status call failing with "command not found" / "unknown command" means the CLI is too old: report that (include a version only if known) and offer the update via install-update.md. Network/auth failures are not version evidence. Do not report ready without live auth.
 
 ## Health gate
 

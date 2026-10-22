@@ -14,7 +14,7 @@ if [ -z "${GRAPHIT_PLUGIN_ROOT:-}" ]; then
 fi
 
 # graphit:floor (stamped by scripts/sync-plugin-version.mjs from cli/package.json)
-FLOOR_VERSION="0.2.430"
+FLOOR_VERSION="0.2.432"
 
 PACKAGE_NAME="@graphit/cli"
 # Strict semver: anything else is rejected so a tampered cache cannot inject.
@@ -41,8 +41,10 @@ if [ -r "$cache_file" ]; then
   fi
 fi
 
+# Feature #1154: say how to install Node visibly - an agent once improvised a silent
+# background installer that hung on a hidden Windows admin prompt. Keep in sync with graphit.ps1.
 if ! command -v npx >/dev/null 2>&1; then
-  echo "graphit: npx (Node.js >=18) is required but was not found on PATH." >&2
+  echo "graphit: Node.js 18 or newer is required (npx was not found on PATH). Install the LTS from https://nodejs.org yourself and approve the admin prompt if one appears - never as a silent background install. Then restart your app or terminal." >&2
   exit 127
 fi
 

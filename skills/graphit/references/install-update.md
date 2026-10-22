@@ -2,6 +2,12 @@
 
 Load this only when installing, updating, or repairing Graphit itself: a `plugin status` update notice, a version mismatch, a copied-snapshot warning, or a Cursor install, double-load or leftover-rule finding. Skip it on every normal build, query, or health turn - `operations.md` covers the session-start check and health gate.
 
+## Prerequisites: Node.js and Git
+
+The plugin's hooks, the `graphit` wrapper and the CLI all need Node.js 18 or newer (`npx`); installing the Claude Code plugin from its marketplace also needs Git. A missing one shows as the wrapper's "Node.js 18 or newer is required" (exit 127) or a raw shell error such as "node: command not found" or "'node' is not recognized as an internal or external command".
+
+When one is missing, stop and tell the user before anything else. The user installs it visibly with the official installer (the LTS from nodejs.org; git-scm.com) and approves the Windows admin popup when it appears. Never run an installer in the background or silently: on Windows, `winget ... --silent` from a background task waits forever on an admin popup nobody sees. If the user asks you to run it, run it in the foreground without `--silent`, and first tell them to watch for the popup. After installing, the user fully restarts the app (or opens a new terminal): a running app keeps its old PATH, so even a new session started from it still cannot find `node`.
+
 ## Install and update
 
 Graphit has two parts: the **CLI** (`@graphit/cli` on npm) and the **plugin bundle** (`graphit@graphit-plugin`: skills, references, hooks, commands). In Claude Code the plugin's `graphit` wrapper runs the CLI through npx at the latest npm release, so the CLI stays current on its own; the bundle changes only when the plugin is updated.

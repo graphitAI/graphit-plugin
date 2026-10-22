@@ -224,13 +224,36 @@ function readHookInput() {
   }
 }
 
+// Issue #1155: an unattended run signs in through its environment, never the
+// credentials file. Mirrors proxyAuthMode() / personalAccessToken() in
+// src/api/client.ts, which a plugin bundle does not ship: proxy wins over the
+// token, as in resolveAuthHeader. A malformed GRAPHIT_AUTH, or an empty or
+// non-Graphit GRAPHIT_TOKEN, makes the CLI refuse every request, so it is
+// "refused" rather than signed in, and named so: a login cannot fix it, the
+// secret can. A `gkb.` machine token belongs to `kb repo` and leaves the login
+// in charge (null).
+function envAuthMethod(env) {
+  const mode = env.GRAPHIT_AUTH?.trim();
+  if (mode) return mode === "proxy" ? "proxy" : "refused";
+  const raw = env.GRAPHIT_TOKEN;
+  if (raw === undefined) return null;
+  const value = raw.trim();
+  if (value.startsWith("graphit_pat_")) return "access_token";
+  return value.startsWith("gkb.") ? null : "refused";
+}
+
 // Feature #675: read session liveness locally (zero network) so the single
-// startup check covers version AND auth. logged_in = a credentials file holding
-// a refresh_token is present; email powers the greeting. The real token refresh
-// stays lazy (first API call), so this is a liveness + identity signal, not a
-// guarantee the token still validates. Pure (takes parsed creds) for testing;
-// the file read (homedir/.graphit/credentials.json) mirrors auth/credentials.ts.
-export function readAuthState(creds) {
+// startup check covers version AND auth. logged_in = a token or proxy run
+// (auth_method names which), else a credentials file holding a refresh_token;
+// email powers the greeting and stays null under a token, whose identity only
+// the server knows. The real token refresh stays lazy (first API call), so this
+// is a liveness + identity signal, not a guarantee the token still validates.
+// Pure (takes parsed creds and the env) for testing; the file read
+// (homedir/.graphit/credentials.json) mirrors auth/credentials.ts.
+export function readAuthState(creds, env = process.env) {
+  const method = envAuthMethod(env);
+  if (method === "refused") return { logged_in: false, auth_method: "refused", email: null };
+  if (method) return { logged_in: true, auth_method: method, email: null };
   if (
     !creds ||
     typeof creds !== "object" ||

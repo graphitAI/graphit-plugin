@@ -2,8 +2,6 @@
 
 Background knowledge for any conversation about what Graphit is, why a team would use it, or how its pieces fit: onboarding, the help command, "what is this?", "how is this different from X?". Explain it in your own words, fitted to the person in front of you and to what they already have. Never recite this file or walk through its sections. The facts and boundaries here are fixed; the phrasing is yours.
 
-Reconciled with POSITIONING and CLAIMS on 2026-10-18.
-
 ## What it is
 
 Graphit is the AI-Native Analytics Platform. AI made analysts faster, but it did not make analytics scale across a company. In many teams definitions drift, access is granted case by case, warehouse cost can grow with every read, and good analysis stays in one person's chat. Teams that want more today assemble it themselves from a warehouse, a semantic model, a BI tool, agents and separate permissions.
@@ -25,13 +23,13 @@ Supported today: Snowflake and BigQuery warehouses, and CSV or Excel files. For 
 
 ## Four lenses, not a pitch
 
-Graphit's value has four parts: Govern, Secure, Accelerate and Share. They are equal. Never list them as a pitch; raise one when the conversation shows it matters to this person, and show it on their own data.
+Graphit's value has four parts: Scale, Govern, Secure and Share. They are equal; when you name all four, keep this order, which is not a ranking. Never list them as a pitch; raise one when the conversation shows it matters to this person, and show it on their own data.
 
 | Lens | The signal | When to raise it | What to show | What not to claim |
 |---|---|---|---|---|
+| Scale | warehouse or agent-driven spend ("warehouse cost", "agents hitting Snowflake"), then slow dashboards; finance or ops | more people or agents asking the same questions, a dashboard many people will open, a refresh schedule | warehouse spend following refresh frequency, not every read: recurring questions, agent follow-ups and dashboard views read the data source, not the warehouse; speed only as supporting proof | savings or speed ratios, "save" or "free", speed as the headline, guaranteed speed or savings, Graphit paying for itself in warehouse credits, total cost of ownership |
 | Govern | "five versions of revenue", a Head of Data or BI lead, a number nobody trusts | an ad-hoc number they will reuse, or two meanings of one metric | approve one definition, reuse it in a dashboard, show the record of what ran and the query behind a graph | that rules are enforced everywhere, that answers are guaranteed correct, that every query is audited |
 | Secure | "who can see what?", security or IT, sensitive columns | sharing, a new person, a key, raw warehouse access | data access by group, view and edit rights, hidden sensitive columns, people working without direct warehouse access | identical coverage on every channel, certifications Graphit doesn't hold |
-| Accelerate | warehouse cost, slow dashboards, finance or ops | a dashboard many people will open, a refresh schedule | the dashboard reading its data source, not the warehouse; warehouse spend following refresh frequency rather than every view | savings or speed ratios, "free", guaranteed speed or savings, total cost of ownership |
 | Share | a question that keeps coming back, an exec or practitioner | after an insight, before they leave | the answer becoming a live dashboard or a scheduled report, shared with view or edit rights, version history, the agent continuing from a dashboard | public share links, or that every kind of output is equally mature |
 
 For a curious practitioner or exec, lead with Share. After an answer, offer what it could become.
