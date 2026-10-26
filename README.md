@@ -4,8 +4,8 @@
 
 ### If you can talk it, you can graph it.
 
-AI-native business intelligence for your terminal and your AI coding assistant.<br/>
-Turn natural language into governed SQL and bespoke, hand-authored HTML dashboards.
+The AI-Native Analytics Platform, in your terminal and your AI coding assistant.<br/>
+Connect your AI agents to business facts and rules, and turn their work into trusted insights, live dashboards and reports.
 
 [![npm](https://img.shields.io/npm/v/@graphit/cli?color=4DB6AC&label=%40graphit%2Fcli)](https://www.npmjs.com/package/@graphit/cli)
 [![node](https://img.shields.io/badge/node-%E2%89%A518-4DB6AC)](https://nodejs.org)
