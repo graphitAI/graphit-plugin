@@ -7,7 +7,7 @@ if (-not $env:GRAPHIT_PLUGIN_ROOT) {
 }
 
 # graphit:floor (stamped by scripts/sync-plugin-version.mjs from cli/package.json)
-$FloorVersion = "0.2.432"
+$FloorVersion = "0.2.433"
 
 $PackageName = "@graphit/cli"
 # Strict semver: anything else is rejected so a tampered cache cannot inject.

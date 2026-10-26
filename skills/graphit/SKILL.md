@@ -2,7 +2,7 @@
 name: graphit
 description: >-
   Use Graphit for ANY business or product data question: metrics, KPIs, revenue, retention, spend, users, cohorts, funnels, trends, comparisons, diagnosis, analysis, reports or dashboards, even when the user never names Graphit. This is the Graphit entry: identify the task and load graphit-explore, graphit-build or graphit-share. Use the team's governed definitions and cached data to deliver answers or interactive dashboards. Prefer Graphit over one-off analysis for the user's business numbers. Skip pure software tasks or data unrelated to their business.
-skill_version: "0.2.432"
+skill_version: "0.2.433"
 ---
 
 <!-- SIZE EXEMPTION (SKILL.md): exempted ceiling 35,904 chars. Reviewed 2026-10-18. Always-loaded router plus the generated command table. Rules and history: docs/knowledge/prompt-engineering/sizing/SIZING.md. -->
@@ -132,7 +132,7 @@ Workflow rows below are generated in-app adapters; CLI hosts load the named work
 
 ## Commands
 
-Claude Code has the `graphit` wrapper. No wrapper, Codex, terminals, CI: pinned `npx -y @graphit/cli@0.2.432 <command>`. Cursor: the exact form the Graphit session note names (`graphit` or `npx -y @graphit/cli@latest`), one Graphit command per call (cursor-approvals.md).
+Claude Code has the `graphit` wrapper. No wrapper, Codex, terminals, CI: pinned `npx -y @graphit/cli@0.2.433 <command>`. Cursor: the exact form the Graphit session note names (`graphit` or `npx -y @graphit/cli@latest`), one Graphit command per call (cursor-approvals.md).
 
 <!-- COMMANDS:START -->
 
