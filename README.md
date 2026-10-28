@@ -33,14 +33,14 @@ graphit auth login
 Plugin marketplace - **Claude Code**:
 
 ```text
-/plugin marketplace add omry-graphit/graphit-plugin
+/plugin marketplace add graphitAI/graphit-plugin
 /plugin install graphit@graphit-plugin
 ```
 
 Plugin marketplace - **Codex**:
 
 ```text
-codex plugin marketplace add omry-graphit/graphit-plugin
+codex plugin marketplace add graphitAI/graphit-plugin
 ```
 
 **Cursor** - install the Graphit plugin into Cursor's local plugins, then reload Cursor (Developer: Reload Window):

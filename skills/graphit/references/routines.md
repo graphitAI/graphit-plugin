@@ -12,7 +12,7 @@ Load when scheduling.md chose a Claude Code routine: Graphit work that runs on a
    - Under the message box, open the environment selector, choose **New environment** and switch to the **Cloud** tab (the dialog opens on Local).
    - **Name:** one only this routine uses, for example `graphit-<routine name>`.
    - **Network access:** **Limited** (**Custom** on claude.ai/code) with the allowed domain `api.graphit-app.com`. If the dialog offers **Also include default list of common package managers**, turn it on: the setup script installs from npm. It widens where the session can reach, so keep the environment to this routine, or use a network secret (below).
-   - **Setup script:** `claude plugin marketplace add omry-graphit/graphit-plugin && claude plugin install graphit@graphit-plugin`
+   - **Setup script:** `claude plugin marketplace add graphitAI/graphit-plugin && claude plugin install graphit@graphit-plugin`
    - **Environment variables,** last. For the default, you run `graphit token create --name <routine-slug> --scope-file scope.json --expires 90d | pbcopy` (the name in letters, digits and dashes; other systems: automation.md), confirm it with `graphit token list` by name, then the user types `GRAPHIT_TOKEN=` and presses Cmd+V (Ctrl+V) on the same line, then you clear the clipboard (automation.md). For a network secret, the user types only `GRAPHIT_AUTH=proxy` here.
    - **Create environment** (**Add environment** on the web).
 6. **Check.** List the environments through `/schedule` and find this one by name. If it is missing, the dialog was not saved: repeat step 5. Whether the token landed shows only in the first run.
