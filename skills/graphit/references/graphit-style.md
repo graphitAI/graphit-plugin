@@ -10,7 +10,7 @@ Graphit dashboards are clean, minimal, and data-forward:
 - **Subtle depth** - `box-shadow: 0 1px 3px rgba(0,0,0,0.08)`, not heavy borders
 - **Uppercase micro-labels** - 12px, 600 weight, `var(--graphit-fg-subtle)`, letter-spacing 0.05em for section headers
 - **Data is hero** - numbers are large and bold; chrome is minimal and muted
-- **Responsive** - grids collapse at 900px breakpoint
+- **Responsive** - grids collapse at 900px breakpoint. At phone width (375px): no fixed width or min-width past 375px, a table of four or more columns scrolls inside `overflow-x: auto`, and nothing is positioned past the screen edge
 
 ## Color Tokens
 

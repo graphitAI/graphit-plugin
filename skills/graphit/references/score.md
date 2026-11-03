@@ -7,7 +7,7 @@ Load when raising a dashboard's score, or when a `dashboard check` returned scor
 | Field | Meaning |
 |---|---|
 | `overall` | 0-100, the mean of the sections whose `status` is `scored`. `null` when none is |
-| `sections.{governance,structure,share_safety,speed}` | `status`: `scored`, `no_queries`, `unverified` (a gate could not finish) or `unavailable`; only `scored` counts. `unanalyzed` lists graphs the scorer could not read, with a reason: they cost no points |
+| `sections.{governance,structure,share_safety,speed,mobile}` | `status`: `scored`, `no_queries`, `unverified` (a gate could not finish) or `unavailable`; only `scored` counts. `unanalyzed` lists graphs the scorer could not read, with a reason: they cost no points |
 | `fixes[]` | One per lost point group: `action`, `params`, `points` (what the overall gains), `section_points`, `places`, `graph_ids`, `text`, `untrusted`, and `effect` on speed fixes |
 | `blocking[]` | What a share gate refuses today (`gate`, `code`, `graph_id`, `text`), whatever the score. Also at `readiness.blocking` |
 | `perfect` | 100 with nothing left to fix |
@@ -45,6 +45,7 @@ Stop and report instead of continuing when:
 | Speed | `run_together`, `load_when_shown`, `load_once`, `start_charts_first` | Start independent loads together, load hidden graphs when first shown, load each graph once, start charts before other setup | `page-load.md` |
 | Speed | `query_fewer_columns` | Drop `params.columns` that the render code never reads | `page-load.md` |
 | Speed | `add_date_parameter`, `replace_current_date` | Let the page's date control reach `params.column` as a literal or a date parameter, not `CURRENT_DATE` | `filters.md`, `query-contract.md` |
+| Mobile | `add_mobile_breakpoint`, `replace_fixed_width`, `wrap_table_scroll`, `use_flow_layout` | Make the page work at phone width (375px): stack side-by-side graphs into one column under a narrow-screen `@media` rule (or give each of the row's graphs a full-row span there); make a fixed width or min-width wider than a phone flexible; put a static table of four or more columns inside a container with `overflow-x: auto`; move an element positioned past the phone's edge into the page flow. `params` is empty: find the element by `graph_ids` and the `untrusted.evidence` locator | `graphit-style.md` |
 
 Fix a wait (`run_together`) only when the later graph truly does not need the earlier result. If its SQL or params use the earlier rows, the wait is real: leave it, tell the user, and move on. Speed fixes quote a measured `effect` for that kind of fix; repeat it as measured elsewhere, never as a promise for this dashboard.
 
