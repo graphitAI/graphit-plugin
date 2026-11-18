@@ -104,7 +104,7 @@ function commandLine(command: string): string {
   return clean(shown).replace(/\s+/g, ' ').slice(0, 160)
 }
 
-// The chalk G's inner markup, read once per load from the plugin bundle.
+// The logo ribbon's inner markup, read once per load from the plugin bundle.
 let logoInner: string | null = null
 
 // Feature #1067: the call's result - its output when that parses, else the

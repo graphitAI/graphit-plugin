@@ -1,5 +1,5 @@
 // Feature #1067: the query card drawn as one SVG on the desktop - a
-// frosted panel (gradient, hairline, soft shadow), the chalk G on a charcoal disc, system type and
+// frosted panel (gradient, hairline, soft shadow), the logo ribbon on a charcoal disc, system type and
 // a real table. Pure: no `$`; every value from the query is XML-escaped here.
 
 import type { Token } from './sql'
@@ -52,7 +52,7 @@ export const CARD_CELLS = W / 8
 const HEADER_ROW = 66
 // The native switcher laid one cell down centers here.
 const ROW_MID = 31
-// The header mark's height: a charcoal disc carrying the chalk G.
+// The header mark's height: a charcoal disc carrying the logo ribbon.
 const MARK_H = 30
 
 const PAD = 22
@@ -85,7 +85,7 @@ const MONO = "'SF Mono', ui-monospace, Menlo, monospace"
 const INK = '#1D1D1F'
 const SUB = '#6E6E73'
 const HAIR = 'rgba(0,0,0,0.08)'
-// Brand Graphite Charcoal: the disc the chalk G sits on, as on the app's sidebar.
+// Brand Graphite Charcoal: the logo's circle, which the ribbon sits on.
 const INK_MARK = '#222224'
 
 const TOKEN_FILL: Record<string, string> = {
@@ -545,10 +545,9 @@ export function renderCardSvg(input: SvgCardInput): { svg: string; width: number
               ? layersSvg(input.panel, top, B)
               : listSvg(input.panel, top, B)
   const H = top + B + 14 + F
-  // The mark is a charcoal disc carrying the chalk outline traced from the
-  // app's own small-size render (graphit-logo.svg, 432 units square): the
-  // full-size vector's thin chalk strokes blur to grey this small, and the
-  // card's SVG draws no embedded images.
+  // The mark is a charcoal disc carrying the logo's white ribbon
+  // (graphit-logo.svg, 432 units square, generated from the brand master);
+  // the card's SVG draws no embedded images.
   const markH = slim ? 26 : MARK_H
   const markW = markH
   // In the one-bar layout the picture holds only the mark and its divider, on

@@ -46,7 +46,7 @@ export type CardModel = {
   lineageRefs: Array<{ kind: string; name: string }>
   layers: Layers
   // The stored column page (the desktop clamps it to its own column sets) and
-  // the chalk G's inner markup ('' when the logo could not be read).
+  // the logo ribbon's inner markup ('' when the logo could not be read).
   colPage: number
   logoInner: string
   expansionFor: (kind: string, name: string) => Expansion

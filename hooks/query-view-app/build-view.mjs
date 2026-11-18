@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Feature #1099: builds query-view.html, the graphit-view MCP App, as one
 // self-contained file (the plugin ships no node_modules): view.ts bundled with
-// esbuild, the chalk G inlined. The output is committed; `--check` fails when
+// esbuild, the logo ribbon inlined. The output is committed; `--check` fails when
 // it is stale (npm run check:commands runs it).
 
 import { readFileSync, writeFileSync } from "node:fs";
