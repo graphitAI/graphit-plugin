@@ -131,7 +131,9 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
     tierLabel: m.tier === 'governed' ? '' : (own(TIER_LABEL, m.tier) ?? clean(m.tier)),
     tierColor: own(TIER_COLOR, m.tier) ?? TIER_COLOR.ad_hoc,
     meta: m.meta.join(' · '),
-    source: m.sourceName ? cell(m.sourceName) : undefined,
+    // On the footer's right, except where the footer's own controls reach it: the
+    // column pager, and Lineage, whose status line and graph already name the source.
+    source: m.sourceName && active !== 'lineage' && !(active === 'results' && colStarts.length > 1) ? cell(m.sourceName) : undefined,
     panel: panels[active](),
     toolbar: TOOLBAR_PX,
     // Feature #1067: every tab keeps the footer band and the body height, so
@@ -244,8 +246,9 @@ export function drawDesktopCard(ui: Ui, m: CardModel): unknown {
           {/* The divider between the tabs and the meta, mirroring the one after the mark. */}
           <Text dimColor>│</Text>
           {m.tier !== 'governed' ? <Text color={own(TIER_COLOR, m.tier) ?? TIER_COLOR.ad_hoc}>{`● ${own(TIER_LABEL, m.tier) ?? clean(m.tier)}`}</Text> : null}
-          {/* Meta and source as one line, so the source name is what truncates at the bar's end. */}
-          <Text dimColor wrap="truncate-end">{[m.meta.join(' · '), m.sourceName ? cell(m.sourceName) : ''].filter(Boolean).join(' · ')}</Text>
+          {/* Meta only: native cells draw wider than the card assumes, so a source name here ran
+              past the card's edge. The picture draws the source on the footer's right instead. */}
+          <Text dimColor wrap="truncate-end">{m.meta.join(' · ')}</Text>
         </Box>
       </Box>
       {/* The footer: the tab's controls, then the query switcher (a carousel's), flowing from the

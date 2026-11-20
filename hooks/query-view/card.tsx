@@ -103,7 +103,7 @@ export function buildModel(input: {
   const hidden = new Set((result.hidden_columns ?? []).map(String))
 
   // The query's own --limit is in its SQL tab; the meta never repeats it.
-  const meta: string[] = [`${rowCount.toLocaleString('en-US')} rows`]
+  const meta: string[] = [`${rowCount.toLocaleString('en-US')} ${rowCount === 1 ? 'row' : 'rows'}`]
   if (typeof result.query_ms === 'number') meta.push(`${result.query_ms.toFixed(0)}ms`)
 
   const cols = (result.columns?.length ? result.columns : Object.keys(result.rows[0] ?? {})).map(String)

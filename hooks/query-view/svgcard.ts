@@ -25,7 +25,8 @@ export type SvgCardInput = {
   // Empty bands (px) kept for native controls laid over the card.
   toolbar?: number
   footer?: number
-  // The data source, drawn bold after the meta.
+  // The data source, drawn bold after the meta; with compactHeader, on the
+  // footer band's right instead, where picture pixels keep it inside the card.
   source?: string
   // The footer band's caption (a pager's row range).
   status?: string
@@ -595,6 +596,7 @@ ${input.tierLabel && !slim ? `<rect x="${pillX}" y="${rowMid - pillH / 2}" width
 <circle cx="${pillX + 11}" cy="${rowMid}" r="3.5" fill="${input.tierColor}"/>
 <text x="${pillX + 19}" y="${rowMid + 4}" font-size="12" font-weight="600" fill="${input.tierColor}">${xml(input.tierLabel)}</text>` : ''}
 ${slim ? '' : `<text x="${W - PAD}" y="${rowMid + 4}" text-anchor="end" font-size="12" fill="${SUB}" style="font-variant-numeric: tabular-nums">${xml(input.meta)}${source ? `<tspan> · </tspan><tspan font-weight="700" fill="${INK}">${xml(source)}</tspan>` : ''}</text>`}
+${slim && F && source ? `<text x="${W - PAD}" y="${H - F / 2 + 4}" text-anchor="end" font-size="12" fill="${SUB}">from <tspan font-weight="700" fill="${INK}">${xml(source)}</tspan></text>` : ''}
 ${F && input.status ? `<text x="${PAD}" y="${H - F / 2 + 4}" font-size="12" fill="${SUB}" style="font-variant-numeric: tabular-nums">${xml(input.status)}</text>` : ''}
 <g clip-path="url(#bodyclip)">${panel.body}</g>
 </svg>`
