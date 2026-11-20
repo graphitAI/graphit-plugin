@@ -63,23 +63,23 @@ NEVER use `->>`  in Snowflake or `:field::STRING` in DuckDB.
 
 Applies only to `--warehouse` queries on a BigQuery connection. Key differences from Snowflake:
 
-- Date math is `DATE_ADD(date, INTERVAL N DAY)` and `DATE_DIFF(a, b, DAY)` - the unit is a bare keyword and `DATE_DIFF` arg order is `(later, earlier, unit)`
+- Date math is `DATE_ADD(date, INTERVAL N DAY)` and `DATE_DIFF(later, earlier, DAY)` - the unit is a bare keyword
 - Null/branch: `IFNULL(a, b)` or `COALESCE(a, b)`; `IF(cond, a, b)` (not `IFF`); `NULLIF` as usual
 - Error-tolerant: `SAFE_CAST(x AS INT64)`, `SAFE_DIVIDE(a, b)`, and the `SAFE.` prefix on most functions (`SAFE.PARSE_DATE(...)`) return NULL instead of erroring
 - Dates/strings: `FORMAT_DATE('%Y-%m', d)`, `PARSE_DATE('%Y-%m-%d', s)`, `EXTRACT(MONTH FROM d)`, `DATE_TRUNC(d, MONTH)` (unit is a keyword, date-arg first)
-- Approx: `APPROX_COUNT_DISTINCT(x)` (not `APPROX_COUNT_DISTINCT` colon syntax); `COUNTIF(cond)` is one word
+- Approx: `APPROX_COUNT_DISTINCT(x)`; `COUNTIF(cond)` is one word
 - Like DuckDB and unlike Snowflake, BigQuery has `GROUP BY ALL` and `SELECT * EXCEPT(col)`
-- Identifiers: back-tick fully-qualified names `` `project.dataset.table` ``; strings use single quotes
+- Tables: `dataset.table` (connection's project) or `` `project.dataset.table` ``, back-ticked when the project id has a hyphen; dataset/table names are case-sensitive, copy them exactly
 - JSON: `JSON_VALUE(col, '$.field')` (scalar) / `JSON_QUERY(col, '$.field')` (subtree) - not Snowflake colon syntax or DuckDB arrows
 
 ## SQL Formatting Standards (Both Engines)
 
 - Keywords UPPERCASE: `SELECT`, `FROM`, `WHERE`, `JOIN`, `GROUP BY`, `ORDER BY`
-- Table/column names UPPERCASE: `ORDERS`, `CUSTOMER_ID`, `TOTAL_REVENUE`
+- Table/column names UPPERCASE: `ORDERS`, `CUSTOMER_ID` (BigQuery tables: exact)
 - Qualify every column with its table alias: `o.ORDER_DATE`, not bare `ORDER_DATE`
 - Use descriptive aliases: `total_revenue`, not `sum1`
 - String literals in single quotes: `'active'`, `'2024-01-01'`
-- Non-ASCII identifiers MUST be double-quoted: `SELECT * FROM "hebrew_table"`
+- Non-ASCII names MUST be quoted: `"hebrew_table"` (BigQuery: back-ticks)
 
 ## CTE Pattern
 

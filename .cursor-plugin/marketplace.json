@@ -7,14 +7,14 @@
   },
   "metadata": {
     "description": "Graphit plugin for AI coding assistants",
-    "version": "0.2.442"
+    "version": "0.2.451"
   },
   "plugins": [
     {
       "name": "graphit",
       "description": "Build custom HTML dashboards from real data. KB-aware queries, entity wrapping, cached data sources.",
       "source": "./",
-      "version": "0.2.442",
+      "version": "0.2.451",
       "category": "data-visualization",
       "tags": [
         "bi",

@@ -29,8 +29,9 @@ On Cursor, first follow cursor-approvals.md.
 
 1. **Map up front.** Say where they are (org and role) and give the product map from about-graphit.md in a few lines: data sources, the knowledge base and its groups, teams, and working through you. To an owner or admin, add what they control. Nothing in it is real-time.
 2. **Connect.** Say the org has no data yet, ask for read-only access, and say you will read it directly to look around and answer; follow connect-warehouse.md.
-3. **Connected, scan, overview: one run, no question in between.** Confirm the connection. Say in one line what the quick scan reads and why, then run it: table and column names (`graphit metadata tables`, `metadata columns`), plus at most one small live query for the main table's row count and date range, run with `graphit query --warehouse` and a specific `--adhoc-reason` (12+ characters). Never a full-table scan. Then the overview: group the tables by what they describe, say how they relate, give the size you measured and the period covered, two or three things worth noticing, and the questions the data can answer. With many tables or schemas, name the areas and main tables only and offer the full map on request. For a file, its upload is the scan; no live query.
-4. **Start line.** One inviting open question, never a menu. Give an example question drawn from the overview, and say that setting up their key metrics or a dashboard is fine too. Infer the path from the answer:
+3. **Connected, scan, overview: one run, no question in between.** Follow first-run-overview.md. The overview is your reply, written out in full and never replaced by a status line or a summary; a failed check costs one plain line, and the user never sees ids, endpoints or error codes.
+4. **Definitions they already have.** After a warehouse, not a file: one optional ask, as its own short message; follow semantic-migration.md.
+5. **Start line.** One inviting open question, never a menu. Give an example question drawn from the overview, and say that setting up their key metrics or a dashboard is fine too. Infer the path from the answer:
    - a question: first-run-quick-answer.md
    - metrics or definitions ("what is our GMV", "set up our KPIs"): first-run-metrics.md
    - a dashboard or something to keep watching: first-run-dashboard.md
@@ -41,6 +42,7 @@ On Cursor, first follow cursor-approvals.md.
 - **onboarding.md's arc.** During onboarding these paths replace it; read onboarding.md only for its command details.
 - **Placement.** A path file's placement question is the placement opening for this conversation; never ask both.
 - **Query output.** The query card shows the SQL and governance details; in the conversation give the plain "How I got it" line, not the full query report.
+- **A failed scan check.** first-run-overview.md replaces reporting.md's failure report: one plain line, no support referral.
 
 ## Hand over
 
@@ -58,7 +60,6 @@ No connector step. Fill the map with the team's real pieces: data sources, group
 
 ## Who you are talking to
 
-- A member, not an admin: connecting a warehouse needs an admin; draft the note and offer the file path meanwhile.
 - Head of Data: lead with metrics. Approve one definition, reuse it in a dashboard, show the record of what ran.
 - Security lead: lead with access. Data access, view and edit rights, hidden sensitive columns, and people working without direct warehouse access.
 

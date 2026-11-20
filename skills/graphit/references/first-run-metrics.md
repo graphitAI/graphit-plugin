@@ -4,7 +4,7 @@ Load this from first-run.md when the user wants metrics or definitions ("what is
 
 ## Pin down what it means
 
-A question like "what was GMV last week" often can't be answered as asked: the data supports several meanings. If they say a definition already exists (dbt, a doc, their BI tool), ask for it, read it and use it instead of proposing your own. Graphit has no importer, so you write the same definition here (attached-docs.md). Otherwise propose the candidates:
+A question like "what was GMV last week" often can't be answered as asked: the data supports several meanings. If they say a definition already exists (dbt, a doc, their BI tool), ask for it, read it and use it instead of proposing your own: write the same definition here (attached-docs.md). A whole project of them (LookML, dbt) is semantic-migration.md. Otherwise propose the candidates:
 
 - Name the columns and filters behind each meaning (gross amount, refunds, test purchases).
 - Show each one's number for a recent period, so they choose between numbers, not formulas.
